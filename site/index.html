@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZF TrendPicking - 股票篩選查詢</title>
+  <style>
+    :root {
+      --bg: #0a1018;
+      --surface: rgba(255, 255, 255, 0.05);
+      --surface-hover: rgba(255, 255, 255, 0.08);
+      --surface-strong: rgba(255, 255, 255, 0.1);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(255, 255, 255, 0.18);
+      --text: #ecfeff;
+      --text-dim: rgba(255, 255, 255, 0.45);
+      --text-mid: rgba(255, 255, 255, 0.65);
+      --accent: #22d3ee;
+      --accent-glow: rgba(34, 211, 238, 0.25);
+      --accent-solid: #06b6d4;
+      --green: #34d399;
+      --green-dim: rgba(52, 211, 153, 0.15);
+      --red: #fb7185;
+      --red-dim: rgba(251, 113, 133, 0.15);
+      --orange: #fbbf24;
+      --tag-vcp: #38bdf8;
+      --tag-sanxian: #a78bfa;
+      --tag-strong: #34d399;
+      --tag-newhigh: #fbbf24;
+      --glass-blur: 20px;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --radius-xs: 6px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated gradient background */
+    body::before {
+      content: '';
+      position: fixed; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: radial-gradient(ellipse at 20% 50%, rgba(6, 182, 212, 0.12) 0%, transparent 50%),
+                  radial-gradient(ellipse at 80% 20%, rgba(34, 211, 238, 0.08) 0%, transparent 50%),
+                  radial-gradient(ellipse at 50% 80%, rgba(56, 189, 248, 0.08) 0%, transparent 50%);
+      animation: bgShift 20s ease-in-out infinite alternate;
+      z-index: 0; pointer-events: none;
+    }
+
+    @keyframes bgShift {
+      0% { transform: translate(0, 0) rotate(0deg); }
+      100% { transform: translate(-5%, 3%) rotate(3deg); }
+    }
+
+    .container {
+      max-width: 920px; margin: 0 auto; padding: 32px 20px;
+      position: relative; z-index: 1;
+    }
+
+    /* === Glass mixin-like base === */
+    .glass {
+      background: var(--surface);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    /* Header */
+    header { text-align: center; margin-bottom: 36px; }
+
+    header h1 {
+      font-size: 32px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #06b6d4 0%, #22d3ee 50%, #38bdf8 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p { color: var(--text-dim); font-size: 14px; letter-spacing: 0.3px; }
+
+    /* Mode tabs */
+    .mode-tabs {
+      display: flex; gap: 0; margin-bottom: 24px;
+      background: var(--surface); backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border-radius: var(--radius-sm); padding: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .mode-tab {
+      flex: 1; padding: 11px 16px; text-align: center;
+      border: none; background: transparent; color: var(--text-dim);
+      cursor: pointer; font-size: 14px; font-weight: 600;
+      border-radius: 8px; transition: all 0.3s ease;
+    }
+
+    .mode-tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+
+    .mode-tab.active {
+      background: linear-gradient(135deg, var(--accent-solid), #0891b2);
+      color: white;
+      box-shadow: 0 4px 15px var(--accent-glow);
+    }
+
+    /* Search box */
+    .search-box { position: relative; margin-bottom: 20px; }
+
+    .search-box input[type="text"] {
+      width: 100%; padding: 14px 20px 14px 48px; font-size: 16px;
+      background: var(--surface); backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text); outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .search-box input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .search-box input[type="text"]::placeholder { color: var(--text-dim); }
+
+    .search-box .search-icon {
+      position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+      color: var(--text-dim); font-size: 18px;
+    }
+
+    /* Date picker row */
+    .date-picker-row {
+      display: flex; gap: 10px; margin-bottom: 16px; align-items: center;
+    }
+
+    .date-picker-row input[type="date"] {
+      flex: 1; padding: 12px 16px; font-size: 15px;
+      background: var(--surface); backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text); outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .date-picker-row input[type="date"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .date-picker-row input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(0.7);
+    }
+
+    .date-nav-btn {
+      padding: 10px 14px; background: var(--surface);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text-mid); cursor: pointer; font-size: 16px;
+      transition: all 0.3s ease; min-width: 44px; text-align: center;
+    }
+
+    .date-nav-btn:hover {
+      border-color: var(--accent); color: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .date-quick-btns {
+      display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto;
+      padding-bottom: 4px; margin-bottom: 12px; scrollbar-width: none;
+    }
+    .date-quick-btns::-webkit-scrollbar { display: none; }
+
+    .date-quick-btn {
+      padding: 5px 12px; border-radius: var(--radius-xs);
+      border: 1px solid var(--border);
+      background: var(--surface); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--text-dim); cursor: pointer;
+      font-size: 12px; transition: all 0.25s ease; flex-shrink: 0;
+    }
+
+    .date-quick-btn:hover {
+      border-color: var(--accent); color: var(--text);
+      background: rgba(129, 140, 248, 0.08);
+    }
+
+    /* Filters */
+    .filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+
+    .filter-btn {
+      padding: 7px 16px; border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--text-dim); cursor: pointer;
+      font-size: 13px; font-weight: 500; transition: all 0.25s ease;
+    }
+
+    .filter-btn:hover { border-color: var(--border-hover); color: var(--text); }
+
+    .filter-btn.active {
+      background: linear-gradient(135deg, var(--accent-solid), #0891b2);
+      border-color: transparent; color: white;
+      box-shadow: 0 2px 12px var(--accent-glow);
+    }
+
+    .filter-label { font-size: 13px; color: var(--text-dim); margin-right: 4px; white-space: nowrap; }
+
+    /* Sort buttons */
+    .sort-row { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+    .sort-label { font-size: 13px; color: var(--text-dim); margin-right: 4px; }
+
+    .sort-btn {
+      padding: 5px 14px; border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--text-dim); cursor: pointer;
+      font-size: 12px; font-weight: 500; transition: all 0.25s ease;
+    }
+
+    .sort-btn:hover { border-color: var(--border-hover); color: var(--text); }
+
+    .sort-btn.active {
+      background: linear-gradient(135deg, var(--accent-solid), #0891b2);
+      border-color: transparent; color: white;
+      box-shadow: 0 2px 12px var(--accent-glow);
+    }
+
+    /* TV export button */
+    .tv-btn {
+      margin-left: auto;
+      background: rgba(19, 131, 235, 0.12) !important;
+      color: #2196F3 !important;
+      border-color: rgba(19, 131, 235, 0.3) !important;
+    }
+    .tv-btn:hover {
+      background: rgba(19, 131, 235, 0.25) !important;
+      border-color: #2196F3 !important;
+    }
+    .tv-btn.copied {
+      background: rgba(52, 211, 153, 0.15) !important;
+      color: var(--green) !important;
+      border-color: rgba(52, 211, 153, 0.3) !important;
+    }
+
+    /* Footer info */
+    #footerInfo { color: var(--text-dim); font-size: 12px; margin-bottom: 6px; }
+
+    /* Loading & empty */
+    .loading { text-align: center; padding: 80px 0; color: var(--text-dim); }
+
+    .spinner {
+      display: inline-block; width: 36px; height: 36px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state { text-align: center; padding: 80px 20px; color: var(--text-dim); }
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.6; }
+    .empty-state p { font-size: 15px; }
+
+    /* Results */
+    .results { display: flex; flex-direction: column; gap: 10px; }
+
+    /* Stock card (search mode) */
+    .stock-card {
+      background: var(--surface); backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .stock-card:hover {
+      border-color: var(--border-hover);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 0 1px var(--border-hover);
+    }
+
+    .stock-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; cursor: pointer; user-select: none;
+      transition: background 0.2s ease;
+    }
+
+    .stock-header:hover { background: rgba(255,255,255, 0.03); }
+
+    .stock-info { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+    .stock-id {
+      font-size: 18px; font-weight: 700; color: var(--accent);
+      letter-spacing: -0.3px;
+    }
+
+    .stock-name { font-size: 15px; color: var(--text); font-weight: 500; }
+
+    .market-badge {
+      font-size: 10px; padding: 3px 8px; border-radius: 20px; font-weight: 600;
+      letter-spacing: 0.3px; text-transform: uppercase;
+    }
+
+    .market-badge.tw {
+      background: rgba(34, 211, 238, 0.12); color: #67e8f9;
+      border: 1px solid rgba(34, 211, 238, 0.2);
+    }
+
+    .market-badge.us {
+      background: rgba(251, 191, 36, 0.1); color: #fde68a;
+      border: 1px solid rgba(251, 191, 36, 0.18);
+    }
+
+    .appearance-count {
+      font-size: 13px; color: var(--text-dim);
+      display: flex; align-items: center; gap: 6px; white-space: nowrap;
+    }
+
+    .appearance-count strong { color: var(--accent); font-size: 20px; font-weight: 800; }
+
+    .stock-details { display: none; }
+    .stock-card.open .stock-details { display: block; }
+
+    .appearance-list { padding: 0 20px 16px; }
+
+    .appearance-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: var(--radius-xs); margin-bottom: 4px;
+      font-size: 14px; background: rgba(255, 255, 255, 0.02);
+      transition: all 0.2s ease;
+    }
+
+    .appearance-item:hover { background: rgba(255, 255, 255, 0.06); }
+
+    .date-text { font-weight: 600; min-width: 100px; font-variant-numeric: tabular-nums; color: var(--text-mid); }
+
+    /* Tags */
+    .tag {
+      font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600;
+      position: relative; cursor: pointer; white-space: nowrap;
+      transition: all 0.2s ease; letter-spacing: 0.2px;
+    }
+
+    .tag:hover { transform: translateY(-1px); }
+
+    .tag .tooltip {
+      display: none; position: absolute; bottom: calc(100% + 10px); left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20, 24, 40, 0.95); backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12px; font-weight: 400;
+      color: var(--text); white-space: nowrap; z-index: 100;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+      line-height: 1.8;
+    }
+
+    .tag .tooltip::after {
+      content: ''; position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%); border: 6px solid transparent;
+      border-top-color: rgba(255,255,255,0.1);
+    }
+
+    /* Desktop hover + click toggle */
+    .tag:hover .tooltip { display: block; }
+    .tag.tooltip-open .tooltip { display: block; }
+
+    .tooltip .t-label { color: var(--text-dim); }
+    .tooltip .t-val { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .tooltip .t-pass { color: var(--green); }
+    .tooltip .t-fail { color: var(--red); }
+
+    /* Tooltip mobile */
+    @media (max-width: 600px) {
+      .tag .tooltip {
+        left: 0; transform: none; max-width: 280px; white-space: normal;
+      }
+      .tag .tooltip::after { left: 20px; transform: none; }
+    }
+
+    .tag.vcp { background: rgba(56, 189, 248, 0.12); color: var(--tag-vcp); border: 1px solid rgba(56, 189, 248, 0.2); }
+    .tag.sanxian { background: rgba(167, 139, 250, 0.12); color: var(--tag-sanxian); border: 1px solid rgba(167, 139, 250, 0.2); }
+    .tag.strong { background: rgba(52, 211, 153, 0.12); color: var(--tag-strong); border: 1px solid rgba(52, 211, 153, 0.2); }
+    .tag.newhigh { background: rgba(251, 191, 36, 0.12); color: var(--tag-newhigh); border: 1px solid rgba(251, 191, 36, 0.2); }
+
+    .detail-value {
+      font-size: 13px; color: var(--text-dim); margin-left: auto;
+      font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+    .detail-label { color: var(--text-dim); font-size: 11px; margin-right: 3px; }
+
+    .detail-value.positive { color: var(--green); }
+    .detail-value.negative { color: var(--red); }
+
+    .industry-text { font-size: 12px; color: var(--text-dim); }
+
+    /* Section header (date mode) */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 0; margin-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;
+      color: var(--text);
+    }
+
+    .section-count { font-size: 13px; color: var(--text-dim); }
+
+    /* Date stock row */
+    .date-stock-row {
+      display: flex; align-items: center; gap: 12px; padding: 11px 16px;
+      background: var(--surface); backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm); margin-bottom: 6px; font-size: 14px;
+      transition: all 0.25s ease;
+    }
+
+    .date-stock-row:hover {
+      border-color: var(--border-hover);
+      background: var(--surface-hover);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.15);
+    }
+
+    /* New/old stock markers */
+    .date-stock-row.is-new {
+      background: rgba(52, 211, 153, 0.06);
+      border-left: 3px solid var(--green);
+    }
+
+    .date-stock-row.is-old {
+      background: rgba(255,255,255, 0.02);
+    }
+
+    .appearance-item.is-new {
+      background: rgba(52, 211, 153, 0.06);
+      border-left: 3px solid var(--green);
+    }
+
+    .appearance-item.is-old {
+      background: rgba(255,255,255, 0.02);
+    }
+
+    .new-old-label {
+      font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .new-old-label.is-new { background: var(--green-dim); color: var(--green); }
+    .new-old-label.is-old { background: rgba(255,255,255,0.06); color: var(--text-dim); }
+
+    .date-stock-row .stock-id { font-size: 15px; min-width: 70px; }
+    .date-stock-row .stock-name { font-size: 14px; min-width: 100px; }
+    .date-stock-row .industry-text { flex: 1; }
+
+    .load-more-btn {
+      display: block; width: 100%; padding: 14px; margin-top: 16px;
+      background: var(--surface); backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px dashed rgba(255,255,255,0.12);
+      border-radius: var(--radius-sm); color: var(--accent); cursor: pointer;
+      font-size: 14px; font-weight: 500; transition: all 0.3s ease;
+    }
+
+    .load-more-btn:hover {
+      border-color: var(--accent);
+      background: rgba(129, 140, 248, 0.06);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    footer {
+      text-align: center; padding: 48px 0 24px;
+      color: var(--text-dim); font-size: 12px; letter-spacing: 0.3px;
+    }
+
+    .hidden { display: none !important; }
+
+    /* ===== Mobile RWD ===== */
+    @media (max-width: 600px) {
+      body::before { display: none; }
+
+      .container { padding: 16px 12px; }
+      header { margin-bottom: 20px; }
+      header h1 { font-size: 22px; }
+      header p { font-size: 12px; }
+
+      .mode-tabs { margin-bottom: 16px; }
+
+      .date-picker-row { gap: 6px; margin-bottom: 10px; }
+      .date-nav-btn { padding: 8px 10px; font-size: 14px; min-width: 36px; }
+
+      .date-quick-btns {
+        display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 6px;
+        padding-bottom: 8px; margin-bottom: 8px;
+        -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      }
+      .date-quick-btns::-webkit-scrollbar { display: none; }
+      .date-quick-btn { font-size: 11px; padding: 4px 8px; flex-shrink: 0; }
+
+      .filters { gap: 6px; margin-bottom: 8px; }
+      .filter-btn { padding: 6px 12px; font-size: 12px; }
+      .filter-label { font-size: 11px; margin-right: 2px; }
+      .sort-row { gap: 6px; margin-bottom: 12px; }
+      .sort-btn { padding: 5px 10px; font-size: 11px; }
+      .sort-label { font-size: 11px; margin-right: 2px; }
+
+      .section-header { flex-direction: column; gap: 4px; align-items: flex-start; padding: 8px 0; margin-bottom: 6px; }
+      .section-count { font-size: 11px; line-height: 1.4; }
+
+      .stock-header { padding: 12px 14px; flex-direction: column; align-items: flex-start; gap: 8px; }
+      .stock-info { gap: 8px; }
+      .stock-id { font-size: 16px; }
+      .stock-name { font-size: 13px; }
+      .appearance-count { font-size: 12px; }
+      .appearance-count strong { font-size: 16px; }
+      .appearance-list { padding: 0 10px 12px; }
+
+      .appearance-item {
+        flex-wrap: wrap; gap: 4px 8px; padding: 8px 10px; font-size: 13px;
+      }
+      .appearance-item .date-text { min-width: auto; font-size: 13px; }
+      .appearance-item .detail-value { margin-left: 0; font-size: 12px; }
+      .appearance-item .detail-label { font-size: 10px; }
+
+      .date-stock-row {
+        flex-wrap: wrap; gap: 4px 8px; padding: 8px 10px; font-size: 13px;
+      }
+      .date-stock-row .stock-id { font-size: 14px; min-width: auto; }
+      .date-stock-row .stock-name { font-size: 13px; min-width: auto; }
+      .date-stock-row .industry-text { flex: none; font-size: 11px; }
+      .date-stock-row .detail-value { margin-left: 0; font-size: 12px; }
+      .date-stock-row .detail-label { font-size: 10px; }
+
+      .tag { white-space: nowrap; font-size: 10px; padding: 2px 6px; }
+      .new-old-label { font-size: 10px; padding: 1px 6px; }
+
+      .tag .tooltip { left: 0; transform: none; max-width: 280px; white-space: normal; }
+      .tag .tooltip::after { left: 20px; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ZF TrendPicking</h1>
+      <p>搜尋股票或按日期查詢篩選清單</p>
+    </header>
+
+    <!-- Mode tabs -->
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-mode="date">按日期查詢</button>
+      <button class="mode-tab" data-mode="stock">搜尋股票</button>
+    </div>
+
+    <!-- Stock search (mode=stock) -->
+    <div id="stockMode" class="hidden">
+      <div class="search-box">
+        <span class="search-icon">&#128269;</span>
+        <input type="text" id="searchInput" placeholder="輸入股票代號或名稱（例：2330、台積電、AAPL）" autocomplete="off">
+      </div>
+    </div>
+
+    <!-- Date search (mode=date) -->
+    <div id="dateMode">
+      <div class="date-picker-row">
+        <button class="date-nav-btn" id="datePrev" title="前一個有資料的日期">&#9664;</button>
+        <input type="date" id="dateInput">
+        <button class="date-nav-btn" id="dateNext" title="後一個有資料的日期">&#9654;</button>
+      </div>
+      <div class="date-quick-btns" id="dateQuickBtns"></div>
+    </div>
+
+    <!-- Shared filters -->
+    <div class="filters">
+      <span class="filter-label">市場</span>
+      <button class="filter-btn active" data-filter="all" data-group="market">全部</button>
+      <button class="filter-btn" data-filter="tw" data-group="market">台股</button>
+      <button class="filter-btn" data-filter="us" data-group="market">美股</button>
+    </div>
+    <div class="filters">
+      <span class="filter-label">類型</span>
+      <button class="filter-btn" data-filter="strong" data-group="type">VCP強勢</button>
+      <button class="filter-btn" data-filter="newhigh" data-group="type">VCP新高</button>
+      <button class="filter-btn" data-filter="sanxian" data-group="type">三線開花</button>
+    </div>
+
+    <!-- Sort (date mode only) -->
+    <div class="sort-row" id="sortRow">
+      <span class="sort-label">排序</span>
+      <button class="sort-btn active" data-sort="default">綜合</button>
+      <button class="sort-btn" data-sort="new-first">新股優先</button>
+      <button class="sort-btn" data-sort="return">20日漲幅</button>
+      <button class="sort-btn" data-sort="gap">突破差距</button>
+      <button class="sort-btn tv-btn" id="tvExportBtn" title="複製清單到剪貼簿並開啟 TradingView">TV 匯出</button>
+      <button class="sort-btn tv-btn" id="aiExportBtn" title="複製 CSV 清單給 AI 分析">AI 匯出</button>
+    </div>
+
+    <div id="content">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>載入資料中...</p>
+      </div>
+    </div>
+
+    <footer>
+      <p id="footerInfo">載入中...</p>
+      <p>ZF TrendPicking &copy; 2026 | 資料來源：FinMind + yfinance</p>
+    </footer>
+  </div>
+
+  <script>
+    // === State ===
+    let INDEX = null;          // index.json: stocks master + months list
+    let MONTH_CACHE = {};      // loaded month data: { "2026-03": [...] }
+    let DATE_INDEX = {};       // { date -> [ entries ] } built from loaded months
+    let STOCK_INDEX = {};      // { stock_id -> [ entries with date ] } reverse index for search
+    let ALL_DATES = [];        // sorted desc, from all loaded months
+    let currentMode = 'date';
+    let activeFilters = { market: 'all', types: new Set() };  // types: multi-select (strong, newhigh, sanxian)
+    let currentSort = 'default';
+    let loadingMonths = new Set();
+    let currentVisibleStocks = [];  // 目前畫面上的股票 [{stock_id, market}, ...]
+
+    // === Data Loading ===
+    async function fetchJSON(url) {
+      const resp = await fetch(url + '?v=' + Date.now(), { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return resp.json();
+    }
+
+    async function loadIndex() {
+      try {
+        INDEX = await fetchJSON('data/index.json');
+        document.getElementById('footerInfo').textContent =
+          `資料範圍 ${INDEX.first_date || '—'} ~ ${INDEX.last_date || '—'} | 共 ${INDEX.total_stocks.toLocaleString()} 檔股票、${INDEX.total_records.toLocaleString()} 筆紀錄 | 更新於 ${INDEX.generated_at}`;
+
+        // Collect ALL dates from all months (we'll load data lazily)
+        ALL_DATES = [];
+        // Pre-load latest month for quick date buttons
+        if (INDEX.months.length > 0) {
+          await loadMonth(INDEX.months[0]);
+          // 預載前兩個月供近 20 交易日新/舊比較
+          if (INDEX.months.length > 1) loadMonth(INDEX.months[1]);
+          if (INDEX.months.length > 2) loadMonth(INDEX.months[2]);
+        }
+        updateDateUI();
+        // 預設日期模式：自動查詢最新日期
+        if (currentMode === 'date' && ALL_DATES.length > 0) {
+          searchByDate(ALL_DATES[0]);
+        } else {
+          showEmptyState();
+        }
+      } catch (err) {
+        document.getElementById('content').innerHTML =
+          `<div class="empty-state"><div class="icon">&#9888;</div><p>載入失敗: ${err.message}</p></div>`;
+      }
+    }
+
+    async function loadMonth(month) {
+      if (MONTH_CACHE[month]) return MONTH_CACHE[month];
+      if (loadingMonths.has(month)) {
+        // Wait for ongoing load
+        while (loadingMonths.has(month)) await new Promise(r => setTimeout(r, 50));
+        return MONTH_CACHE[month];
+      }
+      loadingMonths.add(month);
+      try {
+        const data = await fetchJSON(`data/months/${month}.json`);
+        MONTH_CACHE[month] = data;
+        // Merge into DATE_INDEX + STOCK_INDEX
+        for (const e of data) {
+          const sid = e.id;
+          const stock = INDEX.stocks[sid];
+          if (!stock) continue;
+          const entry = {
+            stock_id: sid, stock_name: stock.n, market: stock.m, industry: stock.i,
+            date: e.d, type: e.t === 'sx' ? 'sanxian' : 'vcp',
+            is_strong: !!e.s, is_new_high: !!e.h,
+            return_20d: e.r ?? null, gap_ratio: e.g ?? null,
+          };
+          if (!DATE_INDEX[e.d]) DATE_INDEX[e.d] = [];
+          DATE_INDEX[e.d].push(entry);
+          if (!STOCK_INDEX[sid]) STOCK_INDEX[sid] = [];
+          STOCK_INDEX[sid].push(entry);
+        }
+        // Rebuild ALL_DATES
+        ALL_DATES = Object.keys(DATE_INDEX).sort().reverse();
+        updateDateUI();
+        return data;
+      } finally {
+        loadingMonths.delete(month);
+      }
+    }
+
+    async function ensureDateLoaded(dateStr) {
+      // 載入當月 + 前兩個月，確保近 20 交易日（最多跨前一月）的新/舊比較資料齊全
+      let m = dateStr.substring(0, 7);
+      for (let i = 0; i < 3; i++) {
+        if (m && !MONTH_CACHE[m] && INDEX.months.includes(m)) {
+          await loadMonth(m);
+        }
+        m = getPrevMonth(m);
+      }
+    }
+
+    function getPrevMonth(m) {
+      const [y, mo] = m.split('-').map(Number);
+      const d = new Date(y, mo - 2, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    function updateDateUI() {
+      if (ALL_DATES.length === 0) return;
+      const dateInput = document.getElementById('dateInput');
+      if (!dateInput.value) dateInput.value = ALL_DATES[0];
+      dateInput.min = INDEX.first_date || ALL_DATES[ALL_DATES.length - 1];
+      dateInput.max = INDEX.last_date || ALL_DATES[0];
+      // Quick date buttons (last 10)
+      const quickContainer = document.getElementById('dateQuickBtns');
+      const recent = ALL_DATES.slice(0, 10);
+      quickContainer.innerHTML = recent.map(d =>
+        `<button class="date-quick-btn" data-date="${d}">${d}</button>`
+      ).join('');
+      quickContainer.querySelectorAll('.date-quick-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('dateInput').value = btn.dataset.date;
+          searchByDate(btn.dataset.date);
+        });
+      });
+    }
+
+    function showEmptyState() {
+      if (currentMode === 'stock') {
+        document.getElementById('content').innerHTML =
+          '<div class="empty-state"><div class="icon">&#128270;</div><p>輸入股票代號或名稱開始搜尋</p></div>';
+      } else {
+        document.getElementById('content').innerHTML =
+          '<div class="empty-state"><div class="icon">&#128197;</div><p>選擇日期查看當天的篩選清單</p></div>';
+      }
+    }
+
+    // === Stock Search ===
+    function searchStock(query) {
+      if (!INDEX || !query.trim()) { showEmptyState(); return; }
+      const q = query.trim().toLowerCase();
+      const matchedIds = [];
+      for (const [sid, s] of Object.entries(INDEX.stocks)) {
+        if (sid.toLowerCase().includes(q) || s.n.toLowerCase().includes(q)) {
+          matchedIds.push(sid);
+        }
+      }
+      if (matchedIds.length === 0) {
+        document.getElementById('content').innerHTML =
+          `<div class="empty-state"><div class="icon">&#128533;</div><p>找不到「${escapeHtml(query)}」的相關結果</p></div>`;
+        return;
+      }
+      // Use STOCK_INDEX for O(1) lookup
+      const results = matchedIds.map(sid => {
+        const s = INDEX.stocks[sid];
+        const all = STOCK_INDEX[sid] || [];
+        const appearances = all.filter(e => {
+          if (activeFilters.market !== 'all' && e.market !== activeFilters.market) return false;
+          if (activeFilters.types.size > 0) {
+            const match = (activeFilters.types.has('strong') && e.type === 'vcp' && e.is_strong)
+              || (activeFilters.types.has('newhigh') && e.type === 'vcp' && e.is_new_high)
+              || (activeFilters.types.has('sanxian') && e.type === 'sanxian');
+            if (!match) return false;
+          }
+          return true;
+        });
+        const totalMonths = s.ms ? s.ms.length : 0;
+        return { stock_id: sid, stock_name: s.n, market: s.m, industry: s.i, appearances, totalMonths };
+      }).filter(s => s.appearances.length > 0 || s.totalMonths > 0);
+
+      results.sort((a, b) => b.appearances.length - a.appearances.length);
+      // Limit to top 50 to avoid rendering lag
+      const totalFound = results.length;
+      if (results.length > 50) results = results.slice(0, 50);
+      if (results.length === 0) {
+        document.getElementById('content').innerHTML =
+          `<div class="empty-state"><div class="icon">&#128533;</div><p>找不到「${escapeHtml(query)}」的相關結果</p></div>`;
+        return;
+      }
+      renderStockResults(results);
+    }
+
+    function renderStockResults(stocks) {
+      let html = stocks.map(stock => {
+        // Group by date using pre-filtered appearances
+        const byDate = {};
+        for (const e of stock.appearances) {
+          const d = e.date;
+          if (!byDate[d]) {
+            byDate[d] = { date: d, is_strong: false, is_new_high: false, is_sanxian: false, return_20d: null, gap_ratio: null };
+          }
+          const bd = byDate[d];
+          if (e.type === 'vcp') {
+            if (e.is_strong) bd.is_strong = true;
+            if (e.is_new_high) bd.is_new_high = true;
+            if (e.return_20d != null) bd.return_20d = e.return_20d;
+          } else {
+            bd.is_sanxian = true;
+            if (e.gap_ratio != null) bd.gap_ratio = e.gap_ratio;
+          }
+        }
+        const merged = Object.values(byDate).sort((a, b) => b.date.localeCompare(a.date));
+        const appearanceHtml = merged.map(a => renderAppearanceRow(a, stock.stock_id)).join('');
+        const loadedMonths = Object.keys(MONTH_CACHE).length;
+        const hasMore = stock.totalMonths > loadedMonths;
+        const countLabel = hasMore
+          ? `近期 <strong>${merged.length}</strong> 天（共 ${stock.totalMonths} 月）`
+          : `出現 <strong>${merged.length}</strong> 天`;
+
+        return `<div class="stock-card" onclick="if(!event.target.closest('.tag') && !event.target.closest('.load-more-btn'))this.classList.toggle('open')">
+          <div class="stock-header">
+            <div class="stock-info">
+              <span class="market-badge ${stock.market}">${stock.market === 'tw' ? '台股' : '美股'}</span>
+              <span class="stock-id">${escapeHtml(stock.stock_id)}</span>
+              <span class="stock-name">${escapeHtml(stock.stock_name)}</span>
+              <span class="industry-text">${escapeHtml(stock.industry)}</span>
+            </div>
+            <div class="appearance-count">${countLabel}</div>
+          </div>
+          <div class="stock-details"><div class="appearance-list">${appearanceHtml}</div></div>
+        </div>`;
+      }).join('');
+      // "載入更多歷史" button
+      const loadedCount = Object.keys(MONTH_CACHE).length;
+      if (loadedCount < INDEX.months.length) {
+        html += `<button class="load-more-btn" onclick="loadMoreMonths()">載入更多歷史（已載入 ${loadedCount}/${INDEX.months.length} 月）</button>`;
+      }
+      document.getElementById('content').innerHTML = `<div class="results">${html}</div>`;
+    }
+
+    async function loadMoreMonths() {
+      const btn = document.querySelector('.load-more-btn');
+      if (btn) btn.textContent = '載入中...';
+      // 記住展開的卡片
+      const openIds = new Set();
+      document.querySelectorAll('.stock-card.open .stock-id').forEach(el => openIds.add(el.textContent));
+      // 載入更多月份
+      const toLoad = INDEX.months.filter(m => !MONTH_CACHE[m]).slice(0, 3);
+      await Promise.all(toLoad.map(m => loadMonth(m)));
+      const q = document.getElementById('searchInput').value;
+      if (q.trim()) searchStock(q);
+      // 恢復展開狀態
+      if (openIds.size > 0) {
+        document.querySelectorAll('.stock-card').forEach(card => {
+          const idEl = card.querySelector('.stock-id');
+          if (idEl && openIds.has(idEl.textContent)) card.classList.add('open');
+        });
+      }
+    }
+
+    // === Date Search ===
+    async function searchByDate(dateStr) {
+      if (!INDEX) return;
+      document.getElementById('content').innerHTML =
+        '<div class="loading"><div class="spinner"></div><p>載入資料中...</p></div>';
+      await ensureDateLoaded(dateStr);
+
+      let entries = DATE_INDEX[dateStr];
+      if (!entries) {
+        const closest = ALL_DATES.reduce((prev, curr) =>
+          Math.abs(new Date(curr) - new Date(dateStr)) < Math.abs(new Date(prev) - new Date(dateStr)) ? curr : prev
+        , ALL_DATES[0]);
+        if (closest) {
+          dateStr = closest;
+          document.getElementById('dateInput').value = closest;
+          await ensureDateLoaded(closest);
+          entries = DATE_INDEX[closest];
+        }
+      }
+      if (!entries || entries.length === 0) {
+        document.getElementById('content').innerHTML =
+          `<div class="empty-state"><div class="icon">&#128533;</div><p>${dateStr} 沒有篩選資料</p></div>`;
+        return;
+      }
+      const filtered = entries.filter(e => {
+        if (activeFilters.market !== 'all' && e.market !== activeFilters.market) return false;
+        if (activeFilters.types.size > 0) {
+          const match = (activeFilters.types.has('strong') && e.type === 'vcp' && e.is_strong)
+            || (activeFilters.types.has('newhigh') && e.type === 'vcp' && e.is_new_high)
+            || (activeFilters.types.has('sanxian') && e.type === 'sanxian');
+          if (!match) return false;
+        }
+        return true;
+      });
+      if (filtered.length === 0) {
+        document.getElementById('content').innerHTML =
+          `<div class="empty-state"><div class="icon">&#128533;</div><p>${dateStr} 在目前篩選條件下沒有結果</p></div>`;
+        return;
+      }
+      renderDateResults(dateStr, filtered);
+    }
+
+    function renderDateResults(dateStr, entries) {
+      const stockMap = {};
+      for (const e of entries) {
+        if (!stockMap[e.stock_id]) {
+          stockMap[e.stock_id] = {
+            stock_id: e.stock_id, stock_name: e.stock_name, market: e.market, industry: e.industry,
+            is_strong: false, is_new_high: false, is_sanxian: false, return_20d: null, gap_ratio: null,
+          };
+        }
+        const s = stockMap[e.stock_id];
+        if (e.type === 'vcp') {
+          if (e.is_strong) s.is_strong = true;
+          if (e.is_new_high) s.is_new_high = true;
+          if (e.return_20d != null) s.return_20d = e.return_20d;
+        } else {
+          s.is_sanxian = true;
+          if (e.gap_ratio != null) s.gap_ratio = e.gap_ratio;
+        }
+      }
+      const merged = Object.values(stockMap);
+      // New/old
+      const recentStockIds = getRecentStockIds(dateStr);
+      for (const s of merged) {
+        s.isNew = !recentStockIds.has(s.stock_id);
+        s._date = dateStr;
+      }
+      sortStocks(merged);
+
+      const strongCount = merged.filter(s => s.is_strong).length;
+      const newHighCount = merged.filter(s => s.is_new_high).length;
+      const sanxianCount = merged.filter(s => s.is_sanxian).length;
+      const bothCount = merged.filter(s => (s.is_strong || s.is_new_high) && s.is_sanxian).length;
+      const newCount = merged.filter(s => s.isNew).length;
+
+      let html = `<div class="section-header">
+        <div class="section-title"><span>${dateStr}</span></div>
+        <div class="section-count">
+          共 ${merged.length} 檔（新 ${newCount} / 舊 ${merged.length - newCount} / VCP強勢 ${strongCount} / VCP新高 ${newHighCount} / 三線開花 ${sanxianCount}${bothCount > 0 ? ` / 同時上榜 ${bothCount}` : ''}）
+        </div>
+      </div>`;
+      html += merged.map(s => renderDateStockRow(s)).join('');
+      document.getElementById('content').innerHTML = `<div class="results">${html}</div>`;
+      currentVisibleStocks = merged.map(s => ({
+        stock_id: s.stock_id,
+        market: s.market,
+        isNew: s.isNew,
+        stock_name: (INDEX.stocks[s.stock_id] && INDEX.stocks[s.stock_id].n) || ''
+      }));
+    }
+
+    function renderDateStockRow(s) {
+      const tags = buildTags(s, s._date, s.stock_id);
+      const newOldCls = s.isNew ? 'is-new' : 'is-old';
+      const newOldLabel = s.isNew ? '<span class="new-old-label is-new">新</span>' : '<span class="new-old-label is-old">舊</span>';
+      let details = '';
+      if (s.return_20d != null) {
+        const cls = s.return_20d >= 0 ? 'positive' : 'negative';
+        const sign = s.return_20d >= 0 ? '+' : '';
+        details += `<span class="detail-value ${cls}"><span class="detail-label">20日漲幅</span>${sign}${s.return_20d.toFixed(2)}%</span>`;
+      }
+      if (s.gap_ratio != null) {
+        const cls = s.gap_ratio >= 0 ? 'positive' : 'negative';
+        const sign = s.gap_ratio >= 0 ? '+' : '';
+        details += `<span class="detail-value ${cls}"><span class="detail-label">突破差距</span>${sign}${s.gap_ratio.toFixed(2)}%</span>`;
+      }
+      return `<div class="date-stock-row ${newOldCls}">
+        ${newOldLabel}
+        <span class="market-badge ${s.market}">${s.market === 'tw' ? '台' : '美'}</span>
+        <span class="stock-id">${escapeHtml(s.stock_id)}</span>
+        <span class="stock-name">${escapeHtml(s.stock_name)}</span>
+        ${tags}
+        <span class="industry-text">${escapeHtml(s.industry)}</span>
+        ${details}
+      </div>`;
+    }
+
+    // === Helpers ===
+    // 近 N 個交易日內出現過視為「舊股」，N 日內首次出現為「新股」
+    const NEW_STOCK_LOOKBACK = 20;
+
+    function getRecentStockIds(dateStr) {
+      const idx = ALL_DATES.indexOf(dateStr);
+      if (idx < 0) return new Set();
+      // ALL_DATES 為降冪，dateStr 之後（idx+1 起）為更早的交易日，取近 N 個的聯集
+      const recentDates = ALL_DATES.slice(idx + 1, idx + 1 + NEW_STOCK_LOOKBACK);
+      const ids = new Set();
+      for (const d of recentDates) {
+        const entries = DATE_INDEX[d];
+        if (entries) for (const e of entries) ids.add(e.stock_id);
+      }
+      return ids;
+    }
+
+    function getFilteredStocksForDate(dateStr) {
+      const entries = DATE_INDEX[dateStr];
+      if (!entries) return [];
+      const filtered = entries.filter(e => {
+        if (activeFilters.market !== 'all' && e.market !== activeFilters.market) return false;
+        if (activeFilters.types.size > 0) {
+          const match = (activeFilters.types.has('strong') && e.type === 'vcp' && e.is_strong)
+            || (activeFilters.types.has('newhigh') && e.type === 'vcp' && e.is_new_high)
+            || (activeFilters.types.has('sanxian') && e.type === 'sanxian');
+          if (!match) return false;
+        }
+        return true;
+      });
+      const map = {};
+      for (const e of filtered) {
+        if (!map[e.stock_id]) {
+          map[e.stock_id] = { stock_id: e.stock_id, stock_name: e.stock_name, market: e.market };
+        }
+      }
+      return Object.values(map);
+    }
+
+    function sortStocks(arr) {
+      const safeNum = v => (v != null && isFinite(v)) ? v : -Infinity;
+      switch (currentSort) {
+        case 'new-first':
+          arr.sort((a, b) => { if (a.isNew !== b.isNew) return a.isNew ? -1 : 1; return safeNum(b.return_20d) - safeNum(a.return_20d); }); break;
+        case 'return':
+          arr.sort((a, b) => safeNum(b.return_20d) - safeNum(a.return_20d)); break;
+        case 'gap':
+          arr.sort((a, b) => safeNum(b.gap_ratio) - safeNum(a.gap_ratio)); break;
+        default:
+          arr.sort((a, b) => {
+            const aS = (a.is_strong?1:0)+(a.is_new_high?1:0)+(a.is_sanxian?1:0);
+            const bS = (b.is_strong?1:0)+(b.is_new_high?1:0)+(b.is_sanxian?1:0);
+            if (bS !== aS) return bS - aS;
+            return safeNum(b.return_20d) - safeNum(a.return_20d);
+          });
+      }
+    }
+
+    const isMobile = () => window.innerWidth <= 600;
+    let IND_CACHE = {}; // { "2026-03": { "2026-03-20": { "2330": { "v": {...} } } } }
+
+    async function loadIndicators(month) {
+      if (IND_CACHE[month]) return IND_CACHE[month];
+      try {
+        const data = await fetchJSON(`data/indicators/${month}.json`);
+        IND_CACHE[month] = data;
+        return data;
+      } catch { return null; }
+    }
+
+    function buildTags(item, dateStr, stockId) {
+      let tags = '';
+      const m = isMobile();
+      const dataAttr = dateStr && stockId ? ` data-date="${dateStr}" data-sid="${stockId}"` : '';
+      if (item.is_strong) tags += `<span class="tag strong"${dataAttr} data-tt="vs">${m ? 'V強' : 'VCP強勢'}</span> `;
+      if (item.is_new_high) tags += `<span class="tag newhigh"${dataAttr} data-tt="vh">${m ? 'V新高' : 'VCP新高'}</span> `;
+      if (item.is_sanxian) tags += `<span class="tag sanxian"${dataAttr} data-tt="sx">${m ? '三花' : '三線開花'}</span> `;
+      return tags;
+    }
+
+    function fmtVal(v) { return v != null ? v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '-'; }
+    function fmtPct(v) { return v != null ? (v * 100).toFixed(2) + '%' : '-'; }
+
+    function buildTooltipHtml(type, ind) {
+      if (!ind) return '<span class="tooltip"><span class="t-label">無指標資料</span></span>';
+      if (type === 'vs') {
+        return `<span class="tooltip">
+          <span class="t-label">收盤</span> <span class="t-val">${fmtVal(ind.close)}</span><br>
+          <span class="t-label">MA50</span> <span class="t-val">${fmtVal(ind.ma50)}</span> &gt;
+          <span class="t-label">MA150</span> <span class="t-val">${fmtVal(ind.ma150)}</span> &gt;
+          <span class="t-label">MA200</span> <span class="t-val">${fmtVal(ind.ma200)}</span><br>
+          <span class="t-label">MA200趨勢</span> <span class="t-val">${ind.ma200_slope != null ? (ind.ma200_slope > 0 ? '↑' : '↓') : '-'}</span> (${fmtVal(ind.ma200_slope)})<br>
+          <span class="t-label">20日漲幅</span> <span class="t-val">${fmtPct(ind.return_20d)}</span> &gt; 大盤 <span class="t-val">${fmtPct(ind.market_return)}</span>
+        </span>`;
+      } else if (type === 'vh') {
+        const high52w = ind.high_260d || ind.high_252d;
+        const gap = (ind.high_5d && high52w) ? Math.abs(ind.high_5d / high52w - 1) : null;
+        return `<span class="tooltip">
+          <span class="t-label">5日高點</span> <span class="t-val">${fmtVal(ind.high_5d)}</span><br>
+          <span class="t-label">52週高點</span> <span class="t-val">${fmtVal(high52w)}</span><br>
+          <span class="t-label">差距</span> <span class="t-val">${gap != null ? (gap*100).toFixed(2)+'%' : '-'}</span><br>
+          <span class="t-label">20日漲幅</span> <span class="t-val">${fmtPct(ind.return_20d)}</span> &gt; 大盤 <span class="t-val">${fmtPct(ind.market_return)}</span>
+        </span>`;
+      } else {
+        return `<span class="tooltip">
+          <span class="t-label">收盤</span> <span class="t-val">${fmtVal(ind.close)}</span><br>
+          <span class="t-label">MA8</span> <span class="t-val">${fmtVal(ind.ma8)}</span> &gt;
+          <span class="t-label">MA21</span> <span class="t-val">${fmtVal(ind.ma21)}</span> &gt;
+          <span class="t-label">MA55</span> <span class="t-val">${fmtVal(ind.ma55)}</span><br>
+          <span class="t-label">55日高點</span> <span class="t-val">${fmtVal(ind.high_55d)}</span>
+          <span class="t-label">次高價</span> <span class="t-val">${fmtVal(ind.second_high)}</span>
+        </span>`;
+      }
+    }
+
+    function renderAppearanceRow(a, stockId) {
+      const tags = buildTags(a, a.date, stockId);
+      const recentIds = getRecentStockIds(a.date);
+      const isNew = recentIds.size === 0 || !recentIds.has(stockId);
+      const newOldCls = isNew ? 'is-new' : 'is-old';
+      const newOldLabel = isNew ? '<span class="new-old-label is-new">新</span>' : '<span class="new-old-label is-old">舊</span>';
+      let details = '';
+      if (a.return_20d != null) {
+        const cls = a.return_20d >= 0 ? 'positive' : 'negative';
+        const sign = a.return_20d >= 0 ? '+' : '';
+        details += `<span class="detail-value ${cls}"><span class="detail-label">20日漲幅</span>${sign}${a.return_20d.toFixed(2)}%</span>`;
+      }
+      if (a.gap_ratio != null) {
+        const cls = a.gap_ratio >= 0 ? 'positive' : 'negative';
+        const sign = a.gap_ratio >= 0 ? '+' : '';
+        details += `<span class="detail-value ${cls}"><span class="detail-label">突破差距</span>${sign}${a.gap_ratio.toFixed(2)}%</span>`;
+      }
+      return `<div class="appearance-item ${newOldCls}">
+        <span class="date-text">${a.date}</span>
+        ${newOldLabel} ${tags} ${details}
+      </div>`;
+    }
+
+    function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+    function triggerCurrentSearch() {
+      if (currentMode === 'stock') {
+        const q = document.getElementById('searchInput').value;
+        if (q.trim()) searchStock(q);
+      } else {
+        const d = document.getElementById('dateInput').value;
+        if (d) searchByDate(d);
+      }
+    }
+
+    function navigateDate(direction) {
+      const cur = document.getElementById('dateInput').value;
+      if (!cur || ALL_DATES.length === 0) return;
+      const idx = ALL_DATES.indexOf(cur);
+      const newIdx = direction === 'prev'
+        ? (idx === -1 ? 0 : Math.min(idx + 1, ALL_DATES.length - 1))
+        : (idx === -1 ? 0 : Math.max(idx - 1, 0));
+      document.getElementById('dateInput').value = ALL_DATES[newIdx];
+      searchByDate(ALL_DATES[newIdx]);
+    }
+
+    // === TradingView Export ===
+    function exportToTradingView() {
+      if (currentVisibleStocks.length === 0) return;
+
+      const symbols = currentVisibleStocks.map(s => {
+        if (s.market === 'tw') {
+          const stock = INDEX.stocks[s.stock_id];
+          const exchange = (stock && stock.e === 'tpex') ? 'TPEX' : 'TWSE';
+          return `${exchange}:${s.stock_id}`;
+        }
+        return `${s.stock_id}`;
+      });
+
+      const text = symbols.join(',');
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('tvExportBtn');
+        btn.textContent = `已複製 ${symbols.length} 檔`;
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'TV 匯出'; btn.classList.remove('copied'); }, 2000);
+      });
+
+      window.open('https://tw.tradingview.com/chart/', '_blank');
+    }
+
+    // === AI Export (CSV) ===
+    function exportToAI() {
+      if (currentVisibleStocks.length === 0) return;
+
+      const header = '新/舊,市場,股號,股名';
+      const buildRow = (stockId, stockName, market, label) => {
+        let marketLabel;
+        if (market === 'tw') {
+          const stock = INDEX.stocks[stockId];
+          marketLabel = (stock && stock.e === 'tpex') ? '上櫃' : '上市';
+        } else {
+          marketLabel = '美股';
+        }
+        return `${label},${marketLabel},${stockId},${stockName}`;
+      };
+
+      const rows = currentVisibleStocks.map(s =>
+        buildRow(s.stock_id, s.stock_name, s.market, s.isNew ? '新' : '舊')
+      );
+
+      // 日期模式：計算昨日有、今日消失的淘汰清單
+      if (currentMode === 'date') {
+        const dateStr = document.getElementById('dateInput').value;
+        const idx = ALL_DATES.indexOf(dateStr);
+        const prevDate = (idx >= 0 && idx < ALL_DATES.length - 1) ? ALL_DATES[idx + 1] : null;
+        if (prevDate && DATE_INDEX[prevDate]) {
+          const todayIds = new Set(currentVisibleStocks.map(s => s.stock_id));
+          const prevFiltered = getFilteredStocksForDate(prevDate);
+          for (const p of prevFiltered) {
+            if (!todayIds.has(p.stock_id)) {
+              const name = p.stock_name
+                || (INDEX.stocks[p.stock_id] && INDEX.stocks[p.stock_id].n)
+                || '';
+              rows.push(buildRow(p.stock_id, name, p.market, '淘汰'));
+            }
+          }
+        }
+      }
+
+      const text = [header, ...rows].join('\n');
+
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('aiExportBtn');
+        btn.textContent = `已複製 ${rows.length} 檔`;
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'AI 匯出';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    // === Event Listeners ===
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentMode = tab.dataset.mode;
+        document.getElementById('stockMode').classList.toggle('hidden', currentMode !== 'stock');
+        document.getElementById('dateMode').classList.toggle('hidden', currentMode !== 'date');
+        document.getElementById('sortRow').classList.toggle('hidden', currentMode !== 'date');
+        showEmptyState();
+        if (currentMode === 'date') {
+          const dateInput = document.getElementById('dateInput');
+          if (!dateInput.value && ALL_DATES.length > 0) {
+            dateInput.value = ALL_DATES[0];
+          }
+          if (dateInput.value) searchByDate(dateInput.value);
+        }
+      });
+    });
+
+    let searchTimer = null;
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => searchStock(e.target.value), 300);
+    });
+    let dateTimer = null;
+    document.getElementById('dateInput').addEventListener('change', (e) => {
+      clearTimeout(dateTimer);
+      dateTimer = setTimeout(() => searchByDate(e.target.value), 400);
+    });
+    document.getElementById('datePrev').addEventListener('click', () => navigateDate('prev'));
+    document.getElementById('dateNext').addEventListener('click', () => navigateDate('next'));
+    document.getElementById('tvExportBtn').addEventListener('click', exportToTradingView);
+    document.getElementById('aiExportBtn').addEventListener('click', exportToAI);
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const f = btn.dataset.filter;
+        const group = btn.dataset.group;
+
+        if (group === 'market') {
+          // 市場：互斥選取
+          document.querySelectorAll('.filter-btn[data-group="market"]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          activeFilters.market = f === 'all' ? 'all' : f;
+        }
+
+        if (group === 'type') {
+          // 類型：多選 toggle
+          btn.classList.toggle('active');
+          if (btn.classList.contains('active')) {
+            activeFilters.types.add(f);
+          } else {
+            activeFilters.types.delete(f);
+          }
+        }
+
+        triggerCurrentSearch();
+      });
+    });
+
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentSort = btn.dataset.sort;
+        triggerCurrentSearch();
+      });
+    });
+
+    // Tag click → load indicator on demand and show tooltip
+    document.addEventListener('click', async (e) => {
+      const tag = e.target.closest('.tag');
+      if (!tag) {
+        document.querySelectorAll('.tag.tooltip-open').forEach(t => {
+          t.classList.remove('tooltip-open');
+          const tt = t.querySelector('.tooltip');
+          if (tt) tt.remove();
+        });
+        return;
+      }
+
+      e.stopPropagation();
+
+      // Close other tooltips
+      document.querySelectorAll('.tag.tooltip-open').forEach(t => {
+        if (t !== tag) {
+          t.classList.remove('tooltip-open');
+          const tt = t.querySelector('.tooltip');
+          if (tt) tt.remove();
+        }
+      });
+
+      // Toggle off if already open
+      if (tag.classList.contains('tooltip-open')) {
+        tag.classList.remove('tooltip-open');
+        const tt = tag.querySelector('.tooltip');
+        if (tt) tt.remove();
+        return;
+      }
+
+      const dt = tag.dataset.date;
+      const sid = tag.dataset.sid;
+      const ttType = tag.dataset.tt; // vs, vh, sx
+      if (!dt || !sid) return;
+
+      // Show loading
+      tag.classList.add('tooltip-open');
+      tag.insertAdjacentHTML('beforeend', '<span class="tooltip"><span class="t-label">載入中...</span></span>');
+
+      const month = dt.substring(0, 7);
+      const indData = await loadIndicators(month);
+
+      // Remove loading tooltip
+      const oldTt = tag.querySelector('.tooltip');
+      if (oldTt) oldTt.remove();
+
+      // Find indicator
+      const indKey = (ttType === 'sx') ? 's' : 'v';
+      const ind = indData?.[dt]?.[sid]?.[indKey] || null;
+
+      tag.insertAdjacentHTML('beforeend', buildTooltipHtml(ttType, ind));
+    });
+
+    loadIndex();
+  </script>
+</body>
+</html>
