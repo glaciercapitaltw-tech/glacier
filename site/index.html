@@ -3,31 +3,43 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZF TrendPicking - 股票篩選查詢</title>
+  <title>藏鋒資本 Glacier Capital｜趨勢選股</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600;700;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0a1018;
-      --surface: rgba(255, 255, 255, 0.05);
-      --surface-hover: rgba(255, 255, 255, 0.08);
-      --surface-strong: rgba(255, 255, 255, 0.1);
-      --border: rgba(255, 255, 255, 0.08);
-      --border-hover: rgba(255, 255, 255, 0.18);
-      --text: #ecfeff;
-      --text-dim: rgba(255, 255, 255, 0.45);
-      --text-mid: rgba(255, 255, 255, 0.65);
-      --accent: #22d3ee;
-      --accent-glow: rgba(34, 211, 238, 0.25);
-      --accent-solid: #06b6d4;
-      --green: #34d399;
-      --green-dim: rgba(52, 211, 153, 0.15);
-      --red: #fb7185;
-      --red-dim: rgba(251, 113, 133, 0.15);
-      --orange: #fbbf24;
-      --tag-vcp: #38bdf8;
-      --tag-sanxian: #a78bfa;
-      --tag-strong: #34d399;
-      --tag-newhigh: #fbbf24;
-      --glass-blur: 20px;
+      /* 藏鋒資本 Glacier Capital — 白底專業風（呼應官網）· 白卡 × 深藍字 × 金 accent */
+      --bg: #f6f4ef;                              /* 暖米白底（官網感）*/
+      --bg-deep: #eeebe3;
+      --surface: #ffffff;                         /* 白卡片 */
+      --surface-hover: #fbfaf6;
+      --surface-strong: #f1ede4;
+      --border: rgba(12, 36, 67, 0.10);           /* 深藍調淡邊框 */
+      --border-hover: rgba(176, 151, 101, 0.55);  /* 金 hover */
+      --text: #16263f;                            /* 深海軍藍黑字 */
+      --text-dim: rgba(22, 38, 63, 0.48);
+      --text-mid: rgba(22, 38, 63, 0.70);
+      --accent: #a8895a;                          /* 香檳金（白底調深才清楚）*/
+      --accent-glow: rgba(176, 151, 101, 0.22);
+      --accent-solid: #b09765;                    /* 品牌金 */
+      --gold: #b09765;
+      --gold-bright: #9c8351;                     /* 白底上「亮金」其實要偏深 */
+      --gold-deep: #7a6642;
+      --navy: #0c2443;                            /* 深海軍藍（標題/hero）*/
+      --teal-deep: #133f44;                       /* 冰川墨綠 */
+      --green: #159d54;                           /* 漲（白底深綠）*/
+      --green-dim: rgba(21, 157, 84, 0.10);
+      --red: #d33f3f;                             /* 跌（白底深紅）*/
+      --red-dim: rgba(211, 63, 63, 0.10);
+      --orange: #b45309;
+      --tag-vcp: #2563a8;                         /* 深冰藍 */
+      --tag-sanxian: #6d4fa0;                     /* 深冰晶紫 */
+      --tag-strong: #15864a;
+      --tag-newhigh: #997327;                     /* 深金 */
+      --glass-blur: 0px;                          /* 白底不需玻璃模糊 */
+      --card-shadow: 0 4px 20px rgba(12, 36, 67, 0.07), 0 1px 3px rgba(12, 36, 67, 0.05);
+      --card-shadow-hover: 0 10px 32px rgba(12, 36, 67, 0.12);
       --radius: 16px;
       --radius-sm: 10px;
       --radius-xs: 6px;
@@ -47,11 +59,23 @@
     body::before {
       content: '';
       position: fixed; top: -50%; left: -50%; width: 200%; height: 200%;
-      background: radial-gradient(ellipse at 20% 50%, rgba(6, 182, 212, 0.12) 0%, transparent 50%),
-                  radial-gradient(ellipse at 80% 20%, rgba(34, 211, 238, 0.08) 0%, transparent 50%),
-                  radial-gradient(ellipse at 50% 80%, rgba(56, 189, 248, 0.08) 0%, transparent 50%);
-      animation: bgShift 20s ease-in-out infinite alternate;
+      background: radial-gradient(ellipse at 18% 22%, rgba(176, 151, 101, 0.10) 0%, transparent 42%),
+                  radial-gradient(ellipse at 86% 90%, rgba(12, 36, 67, 0.06) 0%, transparent 50%);
+      animation: bgShift 24s ease-in-out infinite alternate;
       z-index: 0; pointer-events: none;
+    }
+
+    /* 冰山幾何紋理疊層（白底極淡）*/
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(12, 36, 67, 0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(12, 36, 67, 0.022) 1px, transparent 1px);
+      background-size: 56px 56px;
+      -webkit-mask-image: radial-gradient(ellipse at 50% 0%, black, transparent 68%);
+      mask-image: radial-gradient(ellipse at 50% 0%, black, transparent 68%);
+      z-index: 0; pointer-events: none; opacity: 0.5;
     }
 
     @keyframes bgShift {
@@ -71,19 +95,80 @@
       -webkit-backdrop-filter: blur(var(--glass-blur));
       border: 1px solid var(--border);
       border-radius: var(--radius);
+      box-shadow: var(--card-shadow);
     }
 
-    /* Header */
-    header { text-align: center; margin-bottom: 36px; }
+    /* Header — 藏鋒資本 Glacier Capital */
+    header { text-align: center; margin-bottom: 38px; padding-top: 14px; }
 
-    header h1 {
-      font-size: 32px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #06b6d4 0%, #22d3ee 50%, #38bdf8 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
+    .brand {
+      display: inline-flex; flex-direction: column; align-items: center; gap: 12px;
+      animation: brandRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    @keyframes brandRise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
-    header p { color: var(--text-dim); font-size: 14px; letter-spacing: 0.3px; }
+    .brand-logo {
+      width: 76px; height: 76px;
+      filter: drop-shadow(0 6px 20px rgba(176, 151, 101, 0.28));
+    }
+    .brand-logo .ice-draw {
+      stroke-dasharray: 320; stroke-dashoffset: 320;
+      animation: iceDraw 1.6s ease-out 0.2s forwards;
+    }
+    @keyframes iceDraw { to { stroke-dashoffset: 0; } }
+
+    .brand-zh {
+      font-family: 'Noto Serif TC', 'Songti TC', serif;
+      font-size: 33px; font-weight: 900; letter-spacing: 10px; line-height: 1.1;
+      padding-left: 10px;  /* 補償字距造成的右偏 */
+      background: linear-gradient(140deg, #6f5c39 0%, #a8895a 48%, #7a6642 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .brand-en {
+      font-size: 11px; font-weight: 600; letter-spacing: 6px; margin-top: 5px;
+      color: var(--gold); text-transform: uppercase; padding-left: 6px;
+    }
+    .brand-divider {
+      width: 46px; height: 1px; margin: 4px auto 0;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+
+    header p {
+      color: var(--text-dim); font-size: 13px; letter-spacing: 1px; margin-top: 14px;
+    }
+
+    /* 市場主切換 台股/美股 */
+    .market-switch {
+      display: flex; gap: 10px; margin-bottom: 22px;
+      animation: brandRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+    }
+    .market-tab {
+      flex: 1; padding: 15px 20px; border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface); backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      color: var(--text-dim); cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      transition: all 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .market-tab-zh {
+      font-family: 'Noto Serif TC', 'Songti TC', serif;
+      font-size: 20px; font-weight: 700; letter-spacing: 5px; padding-left: 5px;
+    }
+    .market-tab-en {
+      font-size: 10px; letter-spacing: 3px; text-transform: uppercase; opacity: 0.62;
+    }
+    .market-tab:hover { border-color: var(--border-hover); color: var(--text-mid); transform: translateY(-1px); }
+    .market-tab.active {
+      color: #081320;
+      background: linear-gradient(140deg, var(--gold-bright), var(--gold) 55%, var(--gold-deep));
+      border-color: var(--gold-bright);
+      box-shadow: 0 10px 28px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+    .market-tab.active .market-tab-en { opacity: 0.55; }
 
     /* Mode tabs */
     .mode-tabs {
@@ -101,11 +186,11 @@
       border-radius: 8px; transition: all 0.3s ease;
     }
 
-    .mode-tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .mode-tab:hover { color: var(--text); background: rgba(12, 36, 67,0.04); }
 
     .mode-tab.active {
-      background: linear-gradient(135deg, var(--accent-solid), #0891b2);
-      color: white;
+      background: linear-gradient(135deg, var(--accent-solid), var(--gold-deep));
+      color: #081320;
       box-shadow: 0 4px 15px var(--accent-glow);
     }
 
@@ -205,8 +290,8 @@
     .filter-btn:hover { border-color: var(--border-hover); color: var(--text); }
 
     .filter-btn.active {
-      background: linear-gradient(135deg, var(--accent-solid), #0891b2);
-      border-color: transparent; color: white;
+      background: linear-gradient(135deg, var(--accent-solid), var(--gold-deep));
+      border-color: transparent; color: #081320;
       box-shadow: 0 2px 12px var(--accent-glow);
     }
 
@@ -228,26 +313,28 @@
     .sort-btn:hover { border-color: var(--border-hover); color: var(--text); }
 
     .sort-btn.active {
-      background: linear-gradient(135deg, var(--accent-solid), #0891b2);
-      border-color: transparent; color: white;
+      background: linear-gradient(135deg, var(--accent-solid), var(--gold-deep));
+      border-color: transparent; color: #081320;
       box-shadow: 0 2px 12px var(--accent-glow);
     }
 
     /* TV export button */
     .tv-btn {
       margin-left: auto;
-      background: rgba(19, 131, 235, 0.12) !important;
-      color: #2196F3 !important;
-      border-color: rgba(19, 131, 235, 0.3) !important;
+      background: rgba(176, 151, 101, 0.13) !important;
+      color: var(--gold-bright) !important;
+      border-color: rgba(176, 151, 101, 0.32) !important;
     }
+    .tv-btn + .tv-btn { margin-left: 8px; }  /* 第二顆緊貼第一顆靠右 */
     .tv-btn:hover {
-      background: rgba(19, 131, 235, 0.25) !important;
-      border-color: #2196F3 !important;
+      background: rgba(176, 151, 101, 0.24) !important;
+      border-color: var(--gold) !important;
+      color: var(--gold-bright) !important;
     }
     .tv-btn.copied {
-      background: rgba(52, 211, 153, 0.15) !important;
+      background: rgba(94, 201, 138, 0.16) !important;
       color: var(--green) !important;
-      border-color: rgba(52, 211, 153, 0.3) !important;
+      border-color: rgba(94, 201, 138, 0.32) !important;
     }
 
     /* Footer info */
@@ -277,12 +364,13 @@
       -webkit-backdrop-filter: blur(var(--glass-blur));
       border: 1px solid var(--border);
       border-radius: var(--radius); overflow: hidden;
+      box-shadow: var(--card-shadow);
       transition: all 0.3s ease;
     }
 
     .stock-card:hover {
       border-color: var(--border-hover);
-      box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 0 1px var(--border-hover);
+      box-shadow: var(--card-shadow-hover);
     }
 
     .stock-header {
@@ -291,7 +379,7 @@
       transition: background 0.2s ease;
     }
 
-    .stock-header:hover { background: rgba(255,255,255, 0.03); }
+    .stock-header:hover { background: rgba(12, 36, 67, 0.03); }
 
     .stock-info { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
@@ -301,21 +389,6 @@
     }
 
     .stock-name { font-size: 15px; color: var(--text); font-weight: 500; }
-
-    .market-badge {
-      font-size: 10px; padding: 3px 8px; border-radius: 20px; font-weight: 600;
-      letter-spacing: 0.3px; text-transform: uppercase;
-    }
-
-    .market-badge.tw {
-      background: rgba(34, 211, 238, 0.12); color: #67e8f9;
-      border: 1px solid rgba(34, 211, 238, 0.2);
-    }
-
-    .market-badge.us {
-      background: rgba(251, 191, 36, 0.1); color: #fde68a;
-      border: 1px solid rgba(251, 191, 36, 0.18);
-    }
 
     .appearance-count {
       font-size: 13px; color: var(--text-dim);
@@ -332,11 +405,11 @@
     .appearance-item {
       display: flex; align-items: center; gap: 10px;
       padding: 10px 14px; border-radius: var(--radius-xs); margin-bottom: 4px;
-      font-size: 14px; background: rgba(255, 255, 255, 0.02);
+      font-size: 14px; background: rgba(12, 36, 67, 0.02);
       transition: all 0.2s ease;
     }
 
-    .appearance-item:hover { background: rgba(255, 255, 255, 0.06); }
+    .appearance-item:hover { background: rgba(12, 36, 67, 0.06); }
 
     .date-text { font-weight: 600; min-width: 100px; font-variant-numeric: tabular-nums; color: var(--text-mid); }
 
@@ -352,19 +425,18 @@
     .tag .tooltip {
       display: none; position: absolute; bottom: calc(100% + 10px); left: 50%;
       transform: translateX(-50%);
-      background: rgba(20, 24, 40, 0.95); backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: #ffffff;
+      border: 1px solid var(--border);
       border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12px; font-weight: 400;
       color: var(--text); white-space: nowrap; z-index: 100;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+      box-shadow: 0 10px 32px rgba(12, 36, 67, 0.20), 0 0 0 1px rgba(176, 151, 101, 0.12);
       line-height: 1.8;
     }
 
     .tag .tooltip::after {
       content: ''; position: absolute; top: 100%; left: 50%;
       transform: translateX(-50%); border: 6px solid transparent;
-      border-top-color: rgba(255,255,255,0.1);
+      border-top-color: #ffffff;
     }
 
     /* Desktop hover + click toggle */
@@ -384,7 +456,7 @@
       .tag .tooltip::after { left: 20px; transform: none; }
     }
 
-    .tag.vcp { background: rgba(56, 189, 248, 0.12); color: var(--tag-vcp); border: 1px solid rgba(56, 189, 248, 0.2); }
+    .tag.vcp { background: rgba(127, 180, 207, 0.12); color: var(--tag-vcp); border: 1px solid rgba(127, 180, 207, 0.25); }
     .tag.sanxian { background: rgba(167, 139, 250, 0.12); color: var(--tag-sanxian); border: 1px solid rgba(167, 139, 250, 0.2); }
     .tag.strong { background: rgba(52, 211, 153, 0.12); color: var(--tag-strong); border: 1px solid rgba(52, 211, 153, 0.2); }
     .tag.newhigh { background: rgba(251, 191, 36, 0.12); color: var(--tag-newhigh); border: 1px solid rgba(251, 191, 36, 0.2); }
@@ -437,7 +509,7 @@
     }
 
     .date-stock-row.is-old {
-      background: rgba(255,255,255, 0.02);
+      background: rgba(12, 36, 67, 0.02);
     }
 
     .appearance-item.is-new {
@@ -446,7 +518,7 @@
     }
 
     .appearance-item.is-old {
-      background: rgba(255,255,255, 0.02);
+      background: rgba(12, 36, 67, 0.02);
     }
 
     .new-old-label {
@@ -455,7 +527,7 @@
     }
 
     .new-old-label.is-new { background: var(--green-dim); color: var(--green); }
-    .new-old-label.is-old { background: rgba(255,255,255,0.06); color: var(--text-dim); }
+    .new-old-label.is-old { background: rgba(12, 36, 67,0.06); color: var(--text-dim); }
 
     .date-stock-row .stock-id { font-size: 15px; min-width: 70px; }
     .date-stock-row .stock-name { font-size: 14px; min-width: 100px; }
@@ -465,7 +537,7 @@
       display: block; width: 100%; padding: 14px; margin-top: 16px;
       background: var(--surface); backdrop-filter: blur(var(--glass-blur));
       -webkit-backdrop-filter: blur(var(--glass-blur));
-      border: 1px dashed rgba(255,255,255,0.12);
+      border: 1px dashed rgba(12, 36, 67,0.12);
       border-radius: var(--radius-sm); color: var(--accent); cursor: pointer;
       font-size: 14px; font-weight: 500; transition: all 0.3s ease;
     }
@@ -545,14 +617,94 @@
       .tag .tooltip { left: 0; transform: none; max-width: 280px; white-space: normal; }
       .tag .tooltip::after { left: 20px; transform: none; }
     }
+    /* === 匯出操作提示 Toast === */
+    .toast-wrap {
+      position: fixed; left: 50%; bottom: 28px;
+      transform: translateX(-50%) translateY(22px);
+      z-index: 999; width: min(460px, calc(100vw - 32px));
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.38s ease, transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .toast-wrap.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+    .toast {
+      background: #ffffff;
+      border: 1px solid var(--border); border-radius: 15px;
+      padding: 16px 16px 16px 18px;
+      box-shadow: 0 18px 50px rgba(12, 36, 67, 0.20), 0 0 0 1px rgba(176, 151, 101, 0.14);
+      display: flex; gap: 13px; align-items: flex-start;
+    }
+    .toast-icon {
+      flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(140deg, var(--gold-deep), var(--gold-bright));
+      display: flex; align-items: center; justify-content: center;
+      color: #081320; font-size: 19px; font-weight: 800;
+      box-shadow: 0 4px 14px rgba(176, 151, 101, 0.35);
+    }
+    .toast-body { flex: 1; min-width: 0; }
+    .toast-title { font-size: 14px; font-weight: 800; color: var(--gold-bright); margin-bottom: 5px; letter-spacing: 0.3px; }
+    .toast-desc { font-size: 12.5px; line-height: 1.6; color: var(--text-mid); }
+    .toast-desc b { color: var(--text); font-weight: 700; }
+    .toast-desc kbd {
+      font-family: inherit; background: var(--surface-strong);
+      border: 1px solid var(--border-hover); border-radius: 5px;
+      padding: 1px 6px; font-size: 11.5px; color: var(--gold-bright); font-weight: 600;
+    }
+    .toast-step {
+      display: block; margin-top: 6px; padding-left: 20px; position: relative;
+    }
+    .toast-step::before {
+      content: attr(data-n); position: absolute; left: 0; top: 1px;
+      width: 15px; height: 15px; border-radius: 50%;
+      background: var(--surface-strong); border: 1px solid var(--border-hover);
+      color: var(--gold-bright); font-size: 9.5px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .toast-close {
+      flex-shrink: 0; background: none; border: none; color: var(--text-dim);
+      cursor: pointer; font-size: 19px; line-height: 1; padding: 0 2px; transition: color 0.2s;
+    }
+    .toast-close:hover { color: var(--gold-bright); }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>ZF TrendPicking</h1>
-      <p>搜尋股票或按日期查詢篩選清單</p>
+      <div class="brand">
+        <svg class="brand-logo" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="藏鋒資本 Logo">
+          <!-- 上半冰山（水面上）幾何色塊 -->
+          <path d="M22 58 L40 26 L54 46 L62 16 L72 46 L86 30 L98 58 Z" fill="#0c2443"/>
+          <path d="M40 26 L54 46 L62 16 Z" fill="#133f44"/>
+          <path d="M62 16 L72 46 L86 30 Z" fill="#0c2443"/>
+          <!-- 上半金色輪廓（描線動畫）-->
+          <path class="ice-draw" d="M22 58 L40 26 L54 46 L62 16 L72 46 L86 30 L98 58" stroke="#b09765" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>
+          <!-- 水面線 -->
+          <line x1="16" y1="60" x2="104" y2="60" stroke="#b09765" stroke-width="1.7"/>
+          <!-- 下半倒影（水面下，金色實體 — 冰山一角）-->
+          <path d="M48 68 L60 106 L72 68 Z" fill="#b09765" opacity="0.92"/>
+          <path d="M34 92 L48 68 L60 106 Z" fill="#b09765" opacity="0.42"/>
+          <path d="M60 106 L72 68 L84 90 Z" fill="#b09765" opacity="0.3"/>
+          <path d="M34 92 L48 68 L60 106 L72 68 L84 90" fill="none" stroke="#b09765" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>
+        </svg>
+        <div>
+          <div class="brand-zh">藏鋒資本</div>
+          <div class="brand-en">Glacier Capital</div>
+          <div class="brand-divider"></div>
+        </div>
+      </div>
+      <p>趨勢選股系統 · 搜尋股票或按日期查詢篩選清單</p>
     </header>
+
+    <!-- 市場主切換：台股 / 美股（完全分開）-->
+    <div class="market-switch" id="marketSwitch">
+      <button class="market-tab active" data-market="tw">
+        <span class="market-tab-zh">台股</span>
+        <span class="market-tab-en">Taiwan</span>
+      </button>
+      <button class="market-tab" data-market="us">
+        <span class="market-tab-zh">美股</span>
+        <span class="market-tab-en">US Market</span>
+      </button>
+    </div>
 
     <!-- Mode tabs -->
     <div class="mode-tabs">
@@ -578,13 +730,7 @@
       <div class="date-quick-btns" id="dateQuickBtns"></div>
     </div>
 
-    <!-- Shared filters -->
-    <div class="filters">
-      <span class="filter-label">市場</span>
-      <button class="filter-btn active" data-filter="all" data-group="market">全部</button>
-      <button class="filter-btn" data-filter="tw" data-group="market">台股</button>
-      <button class="filter-btn" data-filter="us" data-group="market">美股</button>
-    </div>
+    <!-- 篩選類型（市場已由頂部主切換決定）-->
     <div class="filters">
       <span class="filter-label">類型</span>
       <button class="filter-btn" data-filter="strong" data-group="type">VCP強勢</button>
@@ -612,8 +758,20 @@
 
     <footer>
       <p id="footerInfo">載入中...</p>
-      <p>ZF TrendPicking &copy; 2026 | 資料來源：FinMind + yfinance</p>
+      <p>藏鋒資本 Glacier Capital &copy; 2026 · 資料來源：FinMind + yfinance</p>
     </footer>
+  </div>
+
+  <!-- 匯出操作提示 -->
+  <div class="toast-wrap" id="toastWrap">
+    <div class="toast">
+      <div class="toast-icon" id="toastIcon">&#10003;</div>
+      <div class="toast-body">
+        <div class="toast-title" id="toastTitle"></div>
+        <div class="toast-desc" id="toastDesc"></div>
+      </div>
+      <button class="toast-close" onclick="document.getElementById('toastWrap').classList.remove('show')" aria-label="關閉">&times;</button>
+    </div>
   </div>
 
   <script>
@@ -624,7 +782,7 @@
     let STOCK_INDEX = {};      // { stock_id -> [ entries with date ] } reverse index for search
     let ALL_DATES = [];        // sorted desc, from all loaded months
     let currentMode = 'date';
-    let activeFilters = { market: 'all', types: new Set() };  // types: multi-select (strong, newhigh, sanxian)
+    let activeFilters = { market: 'tw', types: new Set() };  // market: tw|us（頂部主切換）；types: multi-select
     let currentSort = 'default';
     let loadingMonths = new Set();
     let currentVisibleStocks = [];  // 目前畫面上的股票 [{stock_id, market}, ...]
@@ -767,7 +925,7 @@
         const s = INDEX.stocks[sid];
         const all = STOCK_INDEX[sid] || [];
         const appearances = all.filter(e => {
-          if (activeFilters.market !== 'all' && e.market !== activeFilters.market) return false;
+          if (e.market !== activeFilters.market) return false;
           if (activeFilters.types.size > 0) {
             const match = (activeFilters.types.has('strong') && e.type === 'vcp' && e.is_strong)
               || (activeFilters.types.has('newhigh') && e.type === 'vcp' && e.is_new_high)
@@ -822,7 +980,6 @@
         return `<div class="stock-card" onclick="if(!event.target.closest('.tag') && !event.target.closest('.load-more-btn'))this.classList.toggle('open')">
           <div class="stock-header">
             <div class="stock-info">
-              <span class="market-badge ${stock.market}">${stock.market === 'tw' ? '台股' : '美股'}</span>
               <span class="stock-id">${escapeHtml(stock.stock_id)}</span>
               <span class="stock-name">${escapeHtml(stock.stock_name)}</span>
               <span class="industry-text">${escapeHtml(stock.industry)}</span>
@@ -885,7 +1042,7 @@
         return;
       }
       const filtered = entries.filter(e => {
-        if (activeFilters.market !== 'all' && e.market !== activeFilters.market) return false;
+        if (e.market !== activeFilters.market) return false;
         if (activeFilters.types.size > 0) {
           const match = (activeFilters.types.has('strong') && e.type === 'vcp' && e.is_strong)
             || (activeFilters.types.has('newhigh') && e.type === 'vcp' && e.is_new_high)
@@ -969,7 +1126,6 @@
       }
       return `<div class="date-stock-row ${newOldCls}">
         ${newOldLabel}
-        <span class="market-badge ${s.market}">${s.market === 'tw' ? '台' : '美'}</span>
         <span class="stock-id">${escapeHtml(s.stock_id)}</span>
         <span class="stock-name">${escapeHtml(s.stock_name)}</span>
         ${tags}
@@ -999,7 +1155,7 @@
       const entries = DATE_INDEX[dateStr];
       if (!entries) return [];
       const filtered = entries.filter(e => {
-        if (activeFilters.market !== 'all' && e.market !== activeFilters.market) return false;
+        if (e.market !== activeFilters.market) return false;
         if (activeFilters.types.size > 0) {
           const match = (activeFilters.types.has('strong') && e.type === 'vcp' && e.is_strong)
             || (activeFilters.types.has('newhigh') && e.type === 'vcp' && e.is_new_high)
@@ -1139,6 +1295,18 @@
       searchByDate(ALL_DATES[newIdx]);
     }
 
+    // === 操作提示 Toast ===
+    const PASTE_KEY = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘V' : 'Ctrl+V';
+    let _toastTimer;
+    function showToast(title, descHtml, ms = 8000) {
+      document.getElementById('toastTitle').textContent = title;
+      document.getElementById('toastDesc').innerHTML = descHtml;
+      const w = document.getElementById('toastWrap');
+      w.classList.add('show');
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => w.classList.remove('show'), ms);
+    }
+
     // === TradingView Export ===
     function exportToTradingView() {
       if (currentVisibleStocks.length === 0) return;
@@ -1158,6 +1326,10 @@
         btn.textContent = `已複製 ${symbols.length} 檔`;
         btn.classList.add('copied');
         setTimeout(() => { btn.textContent = 'TV 匯出'; btn.classList.remove('copied'); }, 2000);
+        showToast(`已複製 ${symbols.length} 檔股票代號`,
+          `已自動開啟 <b>TradingView</b>，接下來只要兩步：` +
+          `<span class="toast-step" data-n="1">在左側 <b>Watchlist 觀察清單</b> 空白處按 <kbd>${PASTE_KEY}</kbd> 貼上（或右鍵 → Import watchlist）</span>` +
+          `<span class="toast-step" data-n="2">${symbols.length} 檔會一次全部匯入，就能逐檔看 K 線圖</span>`);
       });
 
       window.open('https://tw.tradingview.com/chart/', '_blank');
@@ -1203,6 +1375,7 @@
       }
 
       const text = [header, ...rows].join('\n');
+      const hasEliminate = currentMode === 'date';
 
       navigator.clipboard.writeText(text).then(() => {
         const btn = document.getElementById('aiExportBtn');
@@ -1212,6 +1385,10 @@
           btn.textContent = 'AI 匯出';
           btn.classList.remove('copied');
         }, 2000);
+        showToast(`已複製 ${rows.length} 檔清單（CSV 格式）`,
+          `清單含 <b>新股／舊股${hasEliminate ? '／淘汰' : ''}</b> 標記，可貼給 AI 分析：` +
+          `<span class="toast-step" data-n="1">開啟 <b>ChatGPT</b> 或 <b>Claude</b>，按 <kbd>${PASTE_KEY}</kbd> 貼上清單</span>` +
+          `<span class="toast-step" data-n="2">直接問它：<span style="color:var(--gold-bright)">「這是今日趨勢選股清單，幫我分析強勢族群與最值得留意的標的」</span></span>`);
       });
     }
 
@@ -1250,17 +1427,21 @@
     document.getElementById('tvExportBtn').addEventListener('click', exportToTradingView);
     document.getElementById('aiExportBtn').addEventListener('click', exportToAI);
 
+    // 市場主切換：台股 / 美股（完全分開，選定後只看該市場）
+    document.querySelectorAll('.market-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        if (tab.classList.contains('active')) return;
+        document.querySelectorAll('.market-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeFilters.market = tab.dataset.market;
+        triggerCurrentSearch();
+      });
+    });
+
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const f = btn.dataset.filter;
         const group = btn.dataset.group;
-
-        if (group === 'market') {
-          // 市場：互斥選取
-          document.querySelectorAll('.filter-btn[data-group="market"]').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          activeFilters.market = f === 'all' ? 'all' : f;
-        }
 
         if (group === 'type') {
           // 類型：多選 toggle
