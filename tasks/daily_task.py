@@ -130,9 +130,23 @@ class DailyTask:
             result["price_count"] = price_count
 
             if price_count == 0:
-                result["errors"].append("無股價資料（可能非交易日）")
-                logger.warning("無股價資料，任務結束")
-                return result
+                # 防呆：當日抓到 0 筆，通常是排程延遲、在當日資料尚未產生時跑。
+                # 自動退回上一個交易日重抓，避免整個任務空跑失敗。
+                prev = TradingCalendar.get_previous_trading_day(target_date)
+                if prev and prev != target_date:
+                    logger.warning(
+                        f"{target_date} 抓到 0 筆（可能尚未收盤/資料未就緒），"
+                        f"自動退回上一交易日 {prev} 重抓"
+                    )
+                    target_date = prev
+                    result["date"] = target_date
+                    price_count = self._fetch_and_save_prices(target_date, stock_info)
+                    result["price_count"] = price_count
+
+                if price_count == 0:
+                    result["errors"].append("無股價資料（可能非交易日）")
+                    logger.warning("無股價資料，任務結束")
+                    return result
 
             # Step 2.5: 補齊歷史缺漏股價（在篩選前修好）
             try:

@@ -131,9 +131,23 @@ class USDailyTask:
             result["price_count"] = price_count
 
             if price_count == 0:
-                result["errors"].append("無美股股價資料（可能非交易日）")
-                logger.warning("無美股股價資料，任務結束")
-                return result
+                # 防呆：當日抓到 0 筆，通常是 GitHub 排程延遲、在美股開盤前跑，
+                # 當日資料尚未產生。自動退回上一個交易日重抓，避免整個任務空跑失敗。
+                prev = USMarketCalendar.get_previous_trading_day(target_date)
+                if prev and prev != target_date:
+                    logger.warning(
+                        f"{target_date} 抓到 0 筆（可能尚未開盤/收盤），"
+                        f"自動退回上一交易日 {prev} 重抓"
+                    )
+                    target_date = prev
+                    result["date"] = target_date
+                    price_count = self._fetch_and_save_prices(target_date, stock_info)
+                    result["price_count"] = price_count
+
+                if price_count == 0:
+                    result["errors"].append("無美股股價資料（可能非交易日）")
+                    logger.warning("無美股股價資料，任務結束")
+                    return result
 
             # Step 2.5: 補齊歷史缺漏股價（在篩選前修好）
             try:
@@ -259,6 +273,15 @@ class USDailyTask:
         # 儲存第一次結果
         self.db.upsert_daily_price(price_df)
         today_count = len(price_df[price_df["date"] == target_date])
+
+        # 防呆：當日完全沒資料（0 筆）通常是排程在美股開盤前跑、資料尚未產生，
+        # 重試也不會有資料，直接回報 0 讓上層退回上一交易日（避免空等 35 分鐘重試）
+        if today_count == 0:
+            logger.warning(
+                f"{target_date} 當日 0 筆（可能尚未開盤/收盤），"
+                f"跳過重試，交由上層退回上一交易日"
+            )
+            return 0
 
         # 重試：如果筆數不足，找出缺失的股票重新下載
         for retry in range(1, MAX_RETRY + 1):
