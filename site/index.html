@@ -18,8 +18,8 @@
       --border: rgba(12, 36, 67, 0.10);           /* 深藍調淡邊框 */
       --border-hover: rgba(176, 151, 101, 0.55);  /* 金 hover */
       --text: #16263f;                            /* 深海軍藍黑字 */
-      --text-dim: rgba(22, 38, 63, 0.48);
-      --text-mid: rgba(22, 38, 63, 0.70);
+      --text-dim: rgba(22, 38, 63, 0.60);
+      --text-mid: rgba(22, 38, 63, 0.82);
       --accent: #a8895a;                          /* 香檳金（白底調深才清楚）*/
       --accent-glow: rgba(176, 151, 101, 0.22);
       --accent-solid: #b09765;                    /* 品牌金 */
@@ -321,9 +321,10 @@
     /* TV export button */
     .tv-btn {
       margin-left: auto;
-      background: rgba(176, 151, 101, 0.13) !important;
-      color: var(--gold-bright) !important;
-      border-color: rgba(176, 151, 101, 0.32) !important;
+      background: rgba(176, 151, 101, 0.16) !important;
+      color: var(--gold-deep) !important;
+      border-color: rgba(176, 151, 101, 0.42) !important;
+      font-weight: 700 !important;
     }
     .tv-btn + .tv-btn { margin-left: 8px; }  /* 第二顆緊貼第一顆靠右 */
     .tv-btn:hover {
@@ -617,6 +618,74 @@
       .tag .tooltip { left: 0; transform: none; max-width: 280px; white-space: normal; }
       .tag .tooltip::after { left: 20px; transform: none; }
     }
+    /* === 匯出教學 Modal === */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(12, 36, 67, 0.55);
+      backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+    }
+    .modal-overlay.show { opacity: 1; pointer-events: auto; }
+    .modal {
+      background: #fff; border-radius: 20px; border: 1px solid var(--border);
+      max-width: 448px; width: 100%; padding: 30px 28px 24px; position: relative;
+      box-shadow: 0 30px 80px rgba(12, 36, 67, 0.32);
+      transform: translateY(18px) scale(0.97);
+      transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .modal-overlay.show .modal { transform: translateY(0) scale(1); }
+    .modal-close {
+      position: absolute; top: 15px; right: 17px; background: none; border: none;
+      color: var(--text-dim); font-size: 22px; line-height: 1; cursor: pointer;
+      padding: 2px 6px; border-radius: 8px; transition: all 0.2s;
+    }
+    .modal-close:hover { color: var(--text); background: var(--surface-strong); }
+    .modal-icon {
+      width: 46px; height: 46px; border-radius: 13px; margin: 0 auto 14px;
+      background: linear-gradient(140deg, var(--gold-deep), var(--gold-bright));
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 24px; font-weight: 800;
+      box-shadow: 0 6px 18px rgba(176, 151, 101, 0.35);
+    }
+    .modal-title {
+      font-family: 'Noto Serif TC', 'Songti TC', serif; font-size: 19px; font-weight: 700;
+      color: var(--text); text-align: center; margin-bottom: 4px;
+    }
+    .modal-lead { font-size: 13px; color: var(--text-mid); text-align: center; margin-bottom: 16px; }
+    .modal-body { margin-bottom: 20px; }
+    .modal-step {
+      position: relative; padding: 9px 12px 9px 40px; margin-bottom: 8px;
+      background: var(--surface-strong); border-radius: 11px;
+      font-size: 13px; line-height: 1.55; color: var(--text-mid);
+    }
+    .modal-step b { color: var(--text); }
+    .modal-step::before {
+      content: attr(data-n); position: absolute; left: 11px; top: 8px;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: linear-gradient(140deg, var(--gold-deep), var(--gold-bright)); color: #fff;
+      font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    }
+    .modal-step kbd {
+      background: #fff; border: 1px solid var(--border-hover); border-radius: 5px;
+      padding: 1px 6px; font-family: inherit; font-size: 12px; color: var(--gold-deep); font-weight: 600;
+    }
+    .modal-quote { color: var(--gold-deep); font-weight: 600; }
+    .modal-actions { display: flex; flex-direction: column; gap: 9px; }
+    .modal-btn {
+      display: block; padding: 15px 18px; border-radius: 12px; text-align: center;
+      font-size: 16px; font-weight: 700; cursor: pointer; text-decoration: none;
+      border: none; transition: all 0.25s; letter-spacing: 0.5px;
+      background: var(--navy);                 /* 深藍實心，白字對比 ~12:1，老人家清楚 */
+      color: #fff; box-shadow: 0 6px 18px rgba(12, 36, 67, 0.28);
+    }
+    .modal-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(12, 36, 67, 0.35); }
+    .modal-btn.secondary {
+      background: #fff; color: var(--text); box-shadow: none;
+      border: 1.5px solid var(--border-hover); font-weight: 600;
+    }
+    .modal-btn.secondary:hover { background: var(--surface-strong); border-color: var(--gold); transform: none; }
+
     /* === 匯出操作提示 Toast === */
     .toast-wrap {
       position: fixed; left: 50%; bottom: 28px;
@@ -760,6 +829,17 @@
       <p id="footerInfo">載入中...</p>
       <p>藏鋒資本 Glacier Capital &copy; 2026 · 資料來源：FinMind + yfinance</p>
     </footer>
+  </div>
+
+  <!-- 匯出教學 Modal -->
+  <div class="modal-overlay" id="exportModal" onclick="if(event.target===this)closeExportModal()">
+    <div class="modal">
+      <button class="modal-close" onclick="closeExportModal()" aria-label="關閉">&times;</button>
+      <div class="modal-icon">&#10003;</div>
+      <h3 class="modal-title" id="modalTitle"></h3>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-actions" id="modalActions"></div>
+    </div>
   </div>
 
   <!-- 匯出操作提示 -->
@@ -1307,6 +1387,17 @@
       _toastTimer = setTimeout(() => w.classList.remove('show'), ms);
     }
 
+    // === 匯出教學 Modal ===
+    function showExportModal(title, bodyHtml, actionsHtml) {
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalBody').innerHTML = bodyHtml;
+      document.getElementById('modalActions').innerHTML = actionsHtml;
+      document.getElementById('exportModal').classList.add('show');
+    }
+    function closeExportModal() {
+      document.getElementById('exportModal').classList.remove('show');
+    }
+
     // === TradingView Export ===
     function exportToTradingView() {
       if (currentVisibleStocks.length === 0) return;
@@ -1321,18 +1412,21 @@
       });
 
       const text = symbols.join(',');
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('tvExportBtn');
-        btn.textContent = `已複製 ${symbols.length} 檔`;
-        btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = 'TV 匯出'; btn.classList.remove('copied'); }, 2000);
-        showToast(`已複製 ${symbols.length} 檔股票代號`,
-          `已自動開啟 <b>TradingView</b>，接下來只要兩步：` +
-          `<span class="toast-step" data-n="1">在左側 <b>Watchlist 觀察清單</b> 空白處按 <kbd>${PASTE_KEY}</kbd> 貼上（或右鍵 → Import watchlist）</span>` +
-          `<span class="toast-step" data-n="2">${symbols.length} 檔會一次全部匯入，就能逐檔看 K 線圖</span>`);
-      });
+      navigator.clipboard.writeText(text).catch(() => {});
+      const btn = document.getElementById('tvExportBtn');
+      btn.textContent = `已複製 ${symbols.length} 檔`;
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'TV 匯出'; btn.classList.remove('copied'); }, 2000);
 
-      window.open('https://tw.tradingview.com/chart/', '_blank');
+      showExportModal(
+        `已複製 ${symbols.length} 檔股票代號`,
+        `<p class="modal-lead">跟著 3 步把清單匯入 TradingView 看圖：</p>` +
+        `<div class="modal-step" data-n="1">點下方「開啟 TradingView」按鈕（開新分頁）</div>` +
+        `<div class="modal-step" data-n="2">在左側 <b>Watchlist 觀察清單</b> 空白處按 <kbd>${PASTE_KEY}</kbd> 貼上（或右鍵 → Import watchlist）</div>` +
+        `<div class="modal-step" data-n="3">${symbols.length} 檔一次全部匯入，就能逐檔看 K 線圖</div>`,
+        `<a class="modal-btn" href="https://tw.tradingview.com/chart/" target="_blank" rel="noopener">開啟 TradingView →</a>` +
+        `<button class="modal-btn secondary" onclick="closeExportModal()">我知道了</button>`
+      );
     }
 
     // === AI Export (CSV) ===
@@ -1377,19 +1471,22 @@
       const text = [header, ...rows].join('\n');
       const hasEliminate = currentMode === 'date';
 
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('aiExportBtn');
-        btn.textContent = `已複製 ${rows.length} 檔`;
-        btn.classList.add('copied');
-        setTimeout(() => {
-          btn.textContent = 'AI 匯出';
-          btn.classList.remove('copied');
-        }, 2000);
-        showToast(`已複製 ${rows.length} 檔清單（CSV 格式）`,
-          `清單含 <b>新股／舊股${hasEliminate ? '／淘汰' : ''}</b> 標記，可貼給 AI 分析：` +
-          `<span class="toast-step" data-n="1">開啟 <b>ChatGPT</b> 或 <b>Claude</b>，按 <kbd>${PASTE_KEY}</kbd> 貼上清單</span>` +
-          `<span class="toast-step" data-n="2">直接問它：<span style="color:var(--gold-bright)">「這是今日趨勢選股清單，幫我分析強勢族群與最值得留意的標的」</span></span>`);
-      });
+      navigator.clipboard.writeText(text).catch(() => {});
+      const btn = document.getElementById('aiExportBtn');
+      btn.textContent = `已複製 ${rows.length} 檔`;
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'AI 匯出'; btn.classList.remove('copied'); }, 2000);
+
+      showExportModal(
+        `已複製 ${rows.length} 檔清單（CSV）`,
+        `<p class="modal-lead">清單含新股／舊股${hasEliminate ? '／淘汰' : ''}標記，貼給 AI 分析：</p>` +
+        `<div class="modal-step" data-n="1">點下方按鈕開啟 <b>ChatGPT</b> 或 <b>Claude</b></div>` +
+        `<div class="modal-step" data-n="2">按 <kbd>${PASTE_KEY}</kbd> 貼上清單</div>` +
+        `<div class="modal-step" data-n="3">直接問它：<span class="modal-quote">「這是今日趨勢選股清單，幫我分析強勢族群與最值得留意的標的」</span></div>`,
+        `<a class="modal-btn" href="https://chatgpt.com/" target="_blank" rel="noopener">開啟 ChatGPT →</a>` +
+        `<a class="modal-btn" href="https://claude.ai/new" target="_blank" rel="noopener">開啟 Claude →</a>` +
+        `<button class="modal-btn secondary" onclick="closeExportModal()">我知道了</button>`
+      );
     }
 
     // === Event Listeners ===
