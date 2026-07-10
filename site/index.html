@@ -423,7 +423,7 @@
 
     .tag:hover { transform: translateY(-1px); }
 
-    .tag .tooltip {
+    .tooltip {
       display: none; position: absolute; bottom: calc(100% + 10px); left: 50%;
       transform: translateX(-50%);
       background: #ffffff;
@@ -434,7 +434,7 @@
       line-height: 1.8;
     }
 
-    .tag .tooltip::after {
+    .tooltip::after {
       content: ''; position: absolute; top: 100%; left: 50%;
       transform: translateX(-50%); border: 6px solid transparent;
       border-top-color: #ffffff;
@@ -443,6 +443,13 @@
     /* Desktop hover + click toggle */
     .tag:hover .tooltip { display: block; }
     .tag.tooltip-open .tooltip { display: block; }
+
+    /* Floating variant: attached to <body> with position:fixed so it escapes
+       the sheet's overflow clipping (.sheet-cell overflow:hidden / .sheet-scroll overflow-x). */
+    .tooltip.floating {
+      display: block; position: fixed; bottom: auto; left: 0; top: 0;
+      transform: translate(-50%, -100%);
+    }
 
     .tooltip .t-label { color: var(--text-dim); }
     .tooltip .t-val { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -455,6 +462,8 @@
         left: 0; transform: none; max-width: 280px; white-space: normal;
       }
       .tag .tooltip::after { left: 20px; transform: none; }
+      /* Floating variant keeps its JS-driven transform; just allow wrapping */
+      .tooltip.floating { max-width: 78vw; white-space: normal; }
     }
 
     .tag.vcp { background: rgba(127, 180, 207, 0.12); color: var(--tag-vcp); border: 1px solid rgba(127, 180, 207, 0.25); }
@@ -487,7 +496,56 @@
 
     .section-count { font-size: 13px; color: var(--text-dim); }
 
-    /* Date stock row */
+    /* === 試算表風清單（Google Sheet / Excel 感）=== */
+    .sheet {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden; box-shadow: var(--card-shadow);
+      animation: brandRise 0.5s ease both;
+    }
+    .sheet-scroll { overflow-x: auto; }
+    .sheet-head, .sheet-row {
+      display: grid;
+      grid-template-columns: 48px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px 98px;
+      align-items: stretch; min-width: 690px;
+    }
+    /* 欄位標題列：深藍底、凍結在頂 */
+    .sheet-head {
+      background: #efe7d6; color: #16263f;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.6px;
+      border-bottom: 2px solid var(--gold);
+      position: sticky; top: 0; z-index: 5;
+    }
+    .sheet-head > span {
+      padding: 12px 10px; display: flex; align-items: center;
+      border-right: 1px solid rgba(22, 38, 63, 0.10);
+    }
+    .sheet-head > span:last-child { border-right: none; }
+    .sheet-head .num { justify-content: flex-end; }
+    /* 資料列：斑馬紋 + 格線 + hover 整列 */
+    .sheet-row {
+      font-size: 13px; border-top: 1px solid var(--border);
+      transition: background 0.14s ease;
+    }
+    .sheet-row:nth-child(even) { background: #faf8f2; }
+    .sheet-row:hover { background: rgba(176, 151, 101, 0.12); }
+    .sheet-row.is-new { box-shadow: inset 3px 0 0 0 var(--green); }
+    .sheet-cell {
+      padding: 9px 10px; display: flex; align-items: center; gap: 5px;
+      border-right: 1px solid var(--border); min-width: 0; overflow: hidden;
+    }
+    .sheet-cell:last-child { border-right: none; }
+    .sheet-cell.num {
+      justify-content: flex-end; font-variant-numeric: tabular-nums; font-weight: 700;
+    }
+    .sheet-cell.num.positive { color: var(--green); }
+    .sheet-cell.num.negative { color: var(--red); }
+    .sheet-cell.num.dash { color: var(--text-dim); font-weight: 400; }
+    .sheet-cell .stock-id { font-size: 14px; font-weight: 700; color: var(--text); }
+    .sheet-cell.c-name { font-weight: 500; color: var(--text); white-space: nowrap; text-overflow: ellipsis; }
+    .sheet-cell.c-industry { font-size: 12px; color: var(--text-dim); white-space: nowrap; text-overflow: ellipsis; }
+    .sheet-cell.sheet-tags { flex-wrap: wrap; gap: 4px; }
+
+    /* Date stock row (legacy) */
     .date-stock-row {
       display: flex; align-items: center; gap: 12px; padding: 11px 16px;
       background: var(--surface); backdrop-filter: blur(var(--glass-blur));
@@ -810,8 +868,7 @@
     <!-- Sort (date mode only) -->
     <div class="sort-row" id="sortRow">
       <span class="sort-label">排序</span>
-      <button class="sort-btn active" data-sort="default">綜合</button>
-      <button class="sort-btn" data-sort="new-first">新股優先</button>
+      <button class="sort-btn active" data-sort="new-first">新股優先</button>
       <button class="sort-btn" data-sort="return">20日漲幅</button>
       <button class="sort-btn" data-sort="gap">突破差距</button>
       <button class="sort-btn tv-btn" id="tvExportBtn" title="複製清單到剪貼簿並開啟 TradingView">TV 匯出</button>
@@ -863,7 +920,7 @@
     let ALL_DATES = [];        // sorted desc, from all loaded months
     let currentMode = 'date';
     let activeFilters = { market: 'tw', types: new Set() };  // market: tw|us（頂部主切換）；types: multi-select
-    let currentSort = 'default';
+    let currentSort = 'new-first';
     let loadingMonths = new Set();
     let currentVisibleStocks = [];  // 目前畫面上的股票 [{stock_id, market}, ...]
 
@@ -1179,7 +1236,14 @@
           共 ${merged.length} 檔（新 ${newCount} / 舊 ${merged.length - newCount} / VCP強勢 ${strongCount} / VCP新高 ${newHighCount} / 三線開花 ${sanxianCount}${bothCount > 0 ? ` / 同時上榜 ${bothCount}` : ''}）
         </div>
       </div>`;
-      html += merged.map(s => renderDateStockRow(s)).join('');
+      const rows = merged.map(s => renderDateStockRow(s)).join('');
+      html += `<div class="sheet"><div class="sheet-scroll">
+        <div class="sheet-head">
+          <span>新舊</span><span>股號</span><span>股名</span><span>類型</span><span>產業</span>
+          <span class="num">20日漲幅</span><span class="num">突破差距</span>
+        </div>
+        ${rows}
+      </div></div>`;
       document.getElementById('content').innerHTML = `<div class="results">${html}</div>`;
       currentVisibleStocks = merged.map(s => ({
         stock_id: s.stock_id,
@@ -1193,24 +1257,23 @@
       const tags = buildTags(s, s._date, s.stock_id);
       const newOldCls = s.isNew ? 'is-new' : 'is-old';
       const newOldLabel = s.isNew ? '<span class="new-old-label is-new">新</span>' : '<span class="new-old-label is-old">舊</span>';
-      let details = '';
-      if (s.return_20d != null) {
-        const cls = s.return_20d >= 0 ? 'positive' : 'negative';
-        const sign = s.return_20d >= 0 ? '+' : '';
-        details += `<span class="detail-value ${cls}"><span class="detail-label">20日漲幅</span>${sign}${s.return_20d.toFixed(2)}%</span>`;
-      }
-      if (s.gap_ratio != null) {
-        const cls = s.gap_ratio >= 0 ? 'positive' : 'negative';
-        const sign = s.gap_ratio >= 0 ? '+' : '';
-        details += `<span class="detail-value ${cls}"><span class="detail-label">突破差距</span>${sign}${s.gap_ratio.toFixed(2)}%</span>`;
-      }
-      return `<div class="date-stock-row ${newOldCls}">
-        ${newOldLabel}
-        <span class="stock-id">${escapeHtml(s.stock_id)}</span>
-        <span class="stock-name">${escapeHtml(s.stock_name)}</span>
-        ${tags}
-        <span class="industry-text">${escapeHtml(s.industry)}</span>
-        ${details}
+
+      // 數字欄：有值顯示帶號百分比並著色，無值顯示「-」
+      const numCell = (v) => {
+        if (v == null) return `<span class="sheet-cell num dash">-</span>`;
+        const cls = v >= 0 ? 'positive' : 'negative';
+        const sign = v >= 0 ? '+' : '';
+        return `<span class="sheet-cell num ${cls}">${sign}${v.toFixed(2)}%</span>`;
+      };
+
+      return `<div class="sheet-row ${newOldCls}">
+        <span class="sheet-cell">${newOldLabel}</span>
+        <span class="sheet-cell"><span class="stock-id">${escapeHtml(s.stock_id)}</span></span>
+        <span class="sheet-cell c-name">${escapeHtml(s.stock_name)}</span>
+        <span class="sheet-cell sheet-tags">${tags}</span>
+        <span class="sheet-cell c-industry">${escapeHtml(s.industry)}</span>
+        ${numCell(s.return_20d)}
+        ${numCell(s.gap_ratio)}
       </div>`;
     }
 
@@ -1256,19 +1319,12 @@
     function sortStocks(arr) {
       const safeNum = v => (v != null && isFinite(v)) ? v : -Infinity;
       switch (currentSort) {
-        case 'new-first':
-          arr.sort((a, b) => { if (a.isNew !== b.isNew) return a.isNew ? -1 : 1; return safeNum(b.return_20d) - safeNum(a.return_20d); }); break;
         case 'return':
           arr.sort((a, b) => safeNum(b.return_20d) - safeNum(a.return_20d)); break;
         case 'gap':
           arr.sort((a, b) => safeNum(b.gap_ratio) - safeNum(a.gap_ratio)); break;
-        default:
-          arr.sort((a, b) => {
-            const aS = (a.is_strong?1:0)+(a.is_new_high?1:0)+(a.is_sanxian?1:0);
-            const bS = (b.is_strong?1:0)+(b.is_new_high?1:0)+(b.is_sanxian?1:0);
-            if (bS !== aS) return bS - aS;
-            return safeNum(b.return_20d) - safeNum(a.return_20d);
-          });
+        default: // new-first（預設）：新股優先，其次依 20 日漲幅
+          arr.sort((a, b) => { if (a.isNew !== b.isNew) return a.isNew ? -1 : 1; return safeNum(b.return_20d) - safeNum(a.return_20d); });
       }
     }
 
@@ -1563,59 +1619,70 @@
       });
     });
 
-    // Tag click → load indicator on demand and show tooltip
+    // Floating tooltip: attached to <body> so it escapes the sheet's overflow
+    // clipping (.sheet-cell overflow:hidden / .sheet-scroll overflow-x:auto).
+    let floatingTip = null;
+    function closeFloatingTip() {
+      if (floatingTip) { floatingTip.remove(); floatingTip = null; }
+      document.querySelectorAll('.tag.tooltip-open').forEach(t => t.classList.remove('tooltip-open'));
+    }
+    function makeTip(html) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html.trim();
+      const el = tmp.firstElementChild;
+      el.classList.add('floating');
+      return el;
+    }
+    function positionTip(tag, tip) {
+      const r = tag.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth;
+      const half = tip.offsetWidth / 2;
+      const margin = 8;
+      let cx = r.left + r.width / 2;
+      cx = Math.max(half + margin, Math.min(cx, vw - half - margin));
+      tip.style.left = cx + 'px';
+      tip.style.top = (r.top - 8) + 'px';
+    }
+
+    // Tag click → load indicator on demand and show floating tooltip
     document.addEventListener('click', async (e) => {
       const tag = e.target.closest('.tag');
-      if (!tag) {
-        document.querySelectorAll('.tag.tooltip-open').forEach(t => {
-          t.classList.remove('tooltip-open');
-          const tt = t.querySelector('.tooltip');
-          if (tt) tt.remove();
-        });
-        return;
-      }
+      if (!tag) { closeFloatingTip(); return; }
 
       e.stopPropagation();
 
-      // Close other tooltips
-      document.querySelectorAll('.tag.tooltip-open').forEach(t => {
-        if (t !== tag) {
-          t.classList.remove('tooltip-open');
-          const tt = t.querySelector('.tooltip');
-          if (tt) tt.remove();
-        }
-      });
-
-      // Toggle off if already open
-      if (tag.classList.contains('tooltip-open')) {
-        tag.classList.remove('tooltip-open');
-        const tt = tag.querySelector('.tooltip');
-        if (tt) tt.remove();
-        return;
-      }
+      // Toggle off if this tag is already open
+      if (tag.classList.contains('tooltip-open')) { closeFloatingTip(); return; }
+      closeFloatingTip();
 
       const dt = tag.dataset.date;
       const sid = tag.dataset.sid;
       const ttType = tag.dataset.tt; // vs, vh, sx
       if (!dt || !sid) return;
 
-      // Show loading
+      // Show loading tip
       tag.classList.add('tooltip-open');
-      tag.insertAdjacentHTML('beforeend', '<span class="tooltip"><span class="t-label">載入中...</span></span>');
+      floatingTip = makeTip('<span class="tooltip"><span class="t-label">載入中...</span></span>');
+      document.body.appendChild(floatingTip);
+      positionTip(tag, floatingTip);
 
       const month = dt.substring(0, 7);
       const indData = await loadIndicators(month);
 
-      // Remove loading tooltip
-      const oldTt = tag.querySelector('.tooltip');
-      if (oldTt) oldTt.remove();
+      // Guard: user may have closed/switched tag during the await
+      if (!tag.classList.contains('tooltip-open') || !floatingTip) return;
 
-      // Find indicator
       const indKey = (ttType === 'sx') ? 's' : 'v';
       const ind = indData?.[dt]?.[sid]?.[indKey] || null;
-
-      tag.insertAdjacentHTML('beforeend', buildTooltipHtml(ttType, ind));
+      const real = makeTip(buildTooltipHtml(ttType, ind));
+      floatingTip.replaceWith(real);
+      floatingTip = real;
+      positionTip(tag, floatingTip);
     });
+
+    // Keep the floating tip anchored to its tag: close it on scroll/resize
+    window.addEventListener('scroll', () => { if (floatingTip) closeFloatingTip(); }, true);
+    window.addEventListener('resize', () => { if (floatingTip) closeFloatingTip(); });
 
     loadIndex();
   </script>
