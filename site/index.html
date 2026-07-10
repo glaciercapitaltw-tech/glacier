@@ -688,6 +688,7 @@
     .modal {
       background: #fff; border-radius: 20px; border: 1px solid var(--border);
       max-width: 448px; width: 100%; padding: 30px 28px 24px; position: relative;
+      max-height: 90vh; overflow-y: auto;
       box-shadow: 0 30px 80px rgba(12, 36, 67, 0.32);
       transform: translateY(18px) scale(0.97);
       transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
@@ -729,6 +730,22 @@
       padding: 1px 6px; font-family: inherit; font-size: 12px; color: var(--gold-deep); font-weight: 600;
     }
     .modal-quote { color: var(--gold-deep); font-weight: 600; }
+    /* 教學截圖：響應式、點擊開新分頁看原圖 */
+    .modal-figure { margin: 6px 0 12px; }
+    .modal-figure img {
+      width: 100%; display: block; border-radius: 10px; border: 1px solid var(--border);
+      box-shadow: 0 4px 14px rgba(12, 36, 67, 0.10); cursor: zoom-in;
+    }
+    /* 結果圖為直幅：限高置中，避免佔滿整個 modal */
+    .modal-figure.portrait img { width: auto; max-width: 100%; max-height: 440px; margin: 0 auto; }
+    .modal-figure figcaption {
+      font-size: 11.5px; color: var(--text-dim); text-align: center;
+      margin-top: 7px; line-height: 1.6;
+    }
+    .modal-done {
+      font-size: 13px; font-weight: 700; color: var(--tag-strong);
+      text-align: center; margin: 16px 0 4px;
+    }
     .modal-actions { display: flex; flex-direction: column; gap: 9px; }
     .modal-btn {
       display: block; padding: 15px 18px; border-radius: 12px; text-align: center;
@@ -1476,10 +1493,15 @@
 
       showExportModal(
         `已複製 ${symbols.length} 檔股票代號`,
-        `<p class="modal-lead">跟著 3 步把清單匯入 TradingView 看圖：</p>` +
-        `<div class="modal-step" data-n="1">點下方「開啟 TradingView」按鈕（開新分頁）</div>` +
-        `<div class="modal-step" data-n="2">在左側 <b>Watchlist 觀察清單</b> 空白處按 <kbd>${PASTE_KEY}</kbd> 貼上（或右鍵 → Import watchlist）</div>` +
-        `<div class="modal-step" data-n="3">${symbols.length} 檔一次全部匯入，就能逐檔看 K 線圖</div>`,
+        `<p class="modal-lead">開啟 TradingView 後，跟著下圖 3 步匯入清單（點圖可放大）：</p>` +
+        `<div class="modal-step" data-n="1">在觀察清單右上角按「<b>＋</b>」符號</div>` +
+        `<figure class="modal-figure"><img src="assets/tv-step1.png" alt="步驟1：在觀察清單右上角按＋" onclick="window.open('assets/tv-step1.png','_blank')"></figure>` +
+        `<div class="modal-step" data-n="2">在「<b>新增商品</b>」搜尋框直接按 <kbd>${PASTE_KEY}</kbd> 貼上</div>` +
+        `<figure class="modal-figure"><img src="assets/tv-step2.png" alt="步驟2：在新增商品搜尋框直接貼上" onclick="window.open('assets/tv-step2.png','_blank')"></figure>` +
+        `<div class="modal-step" data-n="3">直接按 <kbd>Enter</kbd>，${symbols.length} 檔一次全部匯入</div>` +
+        `<figure class="modal-figure"><img src="assets/tv-step3.png" alt="步驟3：直接按 Enter" onclick="window.open('assets/tv-step3.png','_blank')"></figure>` +
+        `<p class="modal-done">✓ 完成！清單就會列出全部股票，逐檔看 K 線圖</p>` +
+        `<figure class="modal-figure portrait"><img src="assets/tv-step4.png" alt="完成：觀察清單列出全部股票" onclick="window.open('assets/tv-step4.png','_blank')"></figure>`,
         `<a class="modal-btn" href="https://tw.tradingview.com/chart/" target="_blank" rel="noopener">開啟 TradingView →</a>` +
         `<button class="modal-btn secondary" onclick="closeExportModal()">我知道了</button>`
       );
