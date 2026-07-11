@@ -71,7 +71,17 @@ class DailyTask:
         Returns:
             執行結果統計
         """
-        original_date = target_date or date.today()
+        # 自動模式（未指定日期）：用「DB 最新資料日期的下一個交易日」決定要抓哪天，
+        # 而非 date.today()——避免排程延遲時撲空、資料慢一天，並自動補齊缺口逐天追上。
+        if target_date is None:
+            latest = self.db.get_latest_date()
+            tradable = TradingCalendar.get_latest_trading_day(date.today())  # 最近已收盤交易日
+            nxt = TradingCalendar.get_next_trading_day(latest) if latest else None
+            original_date = min(nxt, tradable) if nxt else tradable
+            if latest:
+                logger.info(f"自動模式：DB 最新 {latest} → 本次目標交易日 {original_date}")
+        else:
+            original_date = target_date
 
         # 檢查是否為交易日
         if not TradingCalendar.is_trading_day(original_date):

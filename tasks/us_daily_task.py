@@ -72,7 +72,19 @@ class USDailyTask:
         Returns:
             執行結果統計
         """
-        original_date = target_date or date.today()
+        # 自動模式（未指定日期）：用「DB 最新資料日期的下一個交易日」決定要抓哪天，
+        # 而非 date.today()——避免 GitHub 排程延遲到美股開盤前跑時撲空、資料慢一天。
+        # 例：DB 最新 7/9 → 抓 7/10（不管排程幾點跑），自動補齊缺口、逐天追上。
+        if target_date is None:
+            latest = self.db.get_latest_date()
+            tradable = USMarketCalendar.get_latest_trading_day(date.today())  # 最近已收盤交易日
+            # 抓 DB 缺的下一個交易日，但不超過「最近已收盤」的（避免抓未收盤的未來日撲空）
+            nxt = USMarketCalendar.get_next_trading_day(latest) if latest else None
+            original_date = min(nxt, tradable) if nxt else tradable
+            if latest:
+                logger.info(f"自動模式：DB 最新 {latest} → 本次目標交易日 {original_date}")
+        else:
+            original_date = target_date
 
         # 檢查是否為美股交易日
         if not USMarketCalendar.is_trading_day(original_date):
