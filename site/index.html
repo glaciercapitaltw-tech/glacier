@@ -878,8 +878,8 @@
       <button class="sort-btn active" data-sort="new-first">新股優先</button>
       <button class="sort-btn" data-sort="return">20日漲幅</button>
       <button class="sort-btn" data-sort="gap">突破差距</button>
-      <button class="sort-btn tv-btn" id="tvExportBtn" title="複製清單到剪貼簿並開啟 TradingView">TV 匯出</button>
-      <button class="sort-btn tv-btn" id="aiExportBtn" title="複製 CSV 清單給 AI 分析">AI 匯出</button>
+      <button class="sort-btn tv-btn" id="tvExportNewBtn" title="只複製「新股」的 TradingView 清單">複製TV清單（新股）</button>
+      <button class="sort-btn tv-btn" id="tvExportAllBtn" title="複製目前篩選條件下全部股票的 TradingView 清單">複製TV清單（全部）</button>
     </div>
 
     <div id="content">
@@ -1462,10 +1462,25 @@
     }
 
     // === TradingView Export ===
-    function exportToTradingView() {
-      if (currentVisibleStocks.length === 0) return;
+    // onlyNew=true → 只複製新股；false → 複製目前篩選條件下的全部
+    function exportToTradingView(onlyNew) {
+      const source = onlyNew
+        ? currentVisibleStocks.filter(s => s.isNew)
+        : currentVisibleStocks;
 
-      const symbols = currentVisibleStocks.map(s => {
+      const btnId = onlyNew ? 'tvExportNewBtn' : 'tvExportAllBtn';
+      const btnLabel = onlyNew ? '複製TV清單（新股）' : '複製TV清單（全部）';
+      const btn = document.getElementById(btnId);
+
+      if (source.length === 0) {
+        // 沒有可複製的股票（例如今天沒有新股）→ 給明確回饋，不要無聲失敗
+        const original = btn.textContent;
+        btn.textContent = onlyNew ? '今天沒有新股' : '沒有可複製的股票';
+        setTimeout(() => { btn.textContent = original; }, 2000);
+        return;
+      }
+
+      const symbols = source.map(s => {
         if (s.market === 'tw') {
           const stock = INDEX.stocks[s.stock_id];
           const exchange = (stock && stock.e === 'tpex') ? 'TPEX' : 'TWSE';
@@ -1476,13 +1491,12 @@
 
       const text = symbols.join(',');
       navigator.clipboard.writeText(text).catch(() => {});
-      const btn = document.getElementById('tvExportBtn');
       btn.textContent = `已複製 ${symbols.length} 檔`;
       btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = 'TV 匯出'; btn.classList.remove('copied'); }, 2000);
+      setTimeout(() => { btn.textContent = btnLabel; btn.classList.remove('copied'); }, 2000);
 
       showExportModal(
-        `已複製 ${symbols.length} 檔股票代號`,
+        `已複製 ${symbols.length} 檔${onlyNew ? '「新股」' : ''}股票代號`,
         `<p class="modal-lead">開啟 TradingView 後，跟著下圖 3 步匯入清單（點圖可放大）：</p>` +
         `<div class="modal-step" data-n="1">在觀察清單右上角按「<b>＋</b>」符號</div>` +
         `<figure class="modal-figure"><img src="assets/tv-step1.png" alt="步驟1：在觀察清單右上角按＋" onclick="window.open('assets/tv-step1.png','_blank')"></figure>` +
@@ -1493,66 +1507,6 @@
         `<p class="modal-done">✓ 完成！清單就會列出全部股票，逐檔看 K 線圖</p>` +
         `<figure class="modal-figure portrait"><img src="assets/tv-step4.png" alt="完成：觀察清單列出全部股票" onclick="window.open('assets/tv-step4.png','_blank')"></figure>`,
         `<a class="modal-btn" href="https://tw.tradingview.com/chart/" target="_blank" rel="noopener">開啟 TradingView →</a>` +
-        `<button class="modal-btn secondary" onclick="closeExportModal()">我知道了</button>`
-      );
-    }
-
-    // === AI Export (CSV) ===
-    function exportToAI() {
-      if (currentVisibleStocks.length === 0) return;
-
-      const header = '新/舊,市場,股號,股名';
-      const buildRow = (stockId, stockName, market, label) => {
-        let marketLabel;
-        if (market === 'tw') {
-          const stock = INDEX.stocks[stockId];
-          marketLabel = (stock && stock.e === 'tpex') ? '上櫃' : '上市';
-        } else {
-          marketLabel = '美股';
-        }
-        return `${label},${marketLabel},${stockId},${stockName}`;
-      };
-
-      const rows = currentVisibleStocks.map(s =>
-        buildRow(s.stock_id, s.stock_name, s.market, s.isNew ? '新' : '舊')
-      );
-
-      // 日期模式：計算昨日有、今日消失的淘汰清單
-      if (currentMode === 'date') {
-        const dateStr = document.getElementById('dateInput').value;
-        const idx = ALL_DATES.indexOf(dateStr);
-        const prevDate = (idx >= 0 && idx < ALL_DATES.length - 1) ? ALL_DATES[idx + 1] : null;
-        if (prevDate && DATE_INDEX[prevDate]) {
-          const todayIds = new Set(currentVisibleStocks.map(s => s.stock_id));
-          const prevFiltered = getFilteredStocksForDate(prevDate);
-          for (const p of prevFiltered) {
-            if (!todayIds.has(p.stock_id)) {
-              const name = p.stock_name
-                || (INDEX.stocks[p.stock_id] && INDEX.stocks[p.stock_id].n)
-                || '';
-              rows.push(buildRow(p.stock_id, name, p.market, '淘汰'));
-            }
-          }
-        }
-      }
-
-      const text = [header, ...rows].join('\n');
-      const hasEliminate = currentMode === 'date';
-
-      navigator.clipboard.writeText(text).catch(() => {});
-      const btn = document.getElementById('aiExportBtn');
-      btn.textContent = `已複製 ${rows.length} 檔`;
-      btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = 'AI 匯出'; btn.classList.remove('copied'); }, 2000);
-
-      showExportModal(
-        `已複製 ${rows.length} 檔清單（CSV）`,
-        `<p class="modal-lead">清單含新股／舊股${hasEliminate ? '／淘汰' : ''}標記，貼給 AI 分析：</p>` +
-        `<div class="modal-step" data-n="1">點下方按鈕開啟 <b>ChatGPT</b> 或 <b>Claude</b></div>` +
-        `<div class="modal-step" data-n="2">按 <kbd>${PASTE_KEY}</kbd> 貼上清單</div>` +
-        `<div class="modal-step" data-n="3">直接問它：<span class="modal-quote">「這是今日趨勢選股清單，幫我分析強勢族群與最值得留意的標的」</span></div>`,
-        `<a class="modal-btn" href="https://chatgpt.com/" target="_blank" rel="noopener">開啟 ChatGPT →</a>` +
-        `<a class="modal-btn" href="https://claude.ai/new" target="_blank" rel="noopener">開啟 Claude →</a>` +
         `<button class="modal-btn secondary" onclick="closeExportModal()">我知道了</button>`
       );
     }
@@ -1589,8 +1543,8 @@
     });
     document.getElementById('datePrev').addEventListener('click', () => navigateDate('prev'));
     document.getElementById('dateNext').addEventListener('click', () => navigateDate('next'));
-    document.getElementById('tvExportBtn').addEventListener('click', exportToTradingView);
-    document.getElementById('aiExportBtn').addEventListener('click', exportToAI);
+    document.getElementById('tvExportNewBtn').addEventListener('click', () => exportToTradingView(true));
+    document.getElementById('tvExportAllBtn').addEventListener('click', () => exportToTradingView(false));
 
     // 市場主切換：台股 / 美股（完全分開，選定後只看該市場）
     document.querySelectorAll('.market-tab').forEach(tab => {
