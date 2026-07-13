@@ -71,15 +71,17 @@ class DailyTask:
         Returns:
             執行結果統計
         """
-        # 自動模式（未指定日期）：用「DB 最新資料日期的下一個交易日」決定要抓哪天，
-        # 而非 date.today()——避免排程延遲時撲空、資料慢一天，並自動補齊缺口逐天追上。
+        # 自動模式（未指定日期）：問「資料源」最新交易日來決定要抓哪天，而非 date.today()。
+        # 資料源（FinMind/yfinance）自己知道颱風假、臨時休市（沒交易就沒資料），
+        # 也不受 GitHub 排程延遲影響——是最可靠的「該抓哪天」單一事實來源。
+        # fallback 順序：資料源最新日 → 交易日曆最近交易日 → today。
         if target_date is None:
-            latest = self.db.get_latest_date()
-            tradable = TradingCalendar.get_latest_trading_day(date.today())  # 最近已收盤交易日
-            nxt = TradingCalendar.get_next_trading_day(latest) if latest else None
-            original_date = min(nxt, tradable) if nxt else tradable
-            if latest:
-                logger.info(f"自動模式：DB 最新 {latest} → 本次目標交易日 {original_date}")
+            original_date = self.client.get_latest_trading_date()
+            if original_date:
+                logger.info(f"自動模式：資料源最新交易日 = {original_date}")
+            else:
+                original_date = TradingCalendar.get_latest_trading_day(date.today())
+                logger.warning(f"資料源查詢失敗，退回交易日曆最近交易日: {original_date}")
         else:
             original_date = target_date
 

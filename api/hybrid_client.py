@@ -5,7 +5,7 @@
 - 主要來源失敗時自動切換到備援來源
 - 資料不完整時觸發備援
 """
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 import pandas as pd
@@ -320,6 +320,32 @@ class HybridClient:
         # 兩者都失敗
         logger.error("大盤指數取得失敗（主要和備援都失敗）")
         return pd.DataFrame()
+
+    def get_latest_trading_date(
+        self, ref_stock: str = "2330", lookback_days: int = 14
+    ) -> Optional[date]:
+        """查詢資料源實際的最新交易日（用指標股近期資料的最後一天）。
+
+        由資料源決定，能自動跳過颱風假、臨時休市等「交易日曆不知道」的休市日，
+        且不依賴 date.today()，排程延遲也不影響。
+
+        Args:
+            ref_stock: 指標股代號（預設台積電 2330，成交穩定）
+            lookback_days: 往前查幾個日曆天（需涵蓋連假，預設 14）
+
+        Returns:
+            資料源最新交易日；查詢失敗回傳 None（由呼叫端 fallback）
+        """
+        start = date.today() - timedelta(days=lookback_days)
+        try:
+            df = self.get_stock_price(
+                start_date=start, end_date=date.today(), stock_ids=[ref_stock]
+            )
+            if df is not None and not df.empty:
+                return pd.to_datetime(df["date"]).max().date()
+        except Exception as e:
+            logger.warning(f"查詢最新交易日失敗（指標股 {ref_stock}）: {e}")
+        return None
 
     def get_stats(self) -> dict:
         """取得客戶端統計資訊"""

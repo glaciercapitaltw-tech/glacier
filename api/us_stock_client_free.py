@@ -440,6 +440,34 @@ class USStockClientFree(USStockClientBase):
             logger.error(f"API 健康檢查失敗: {e}")
             return False
 
+    def get_latest_trading_date(
+        self, ref_stock: str = "AAPL", lookback_days: int = 10
+    ) -> Optional[date]:
+        """查詢資料源實際的最新交易日（用指標股近期資料的最後一天）。
+
+        由資料源決定，能自動跳過臨時休市，且不依賴 date.today()，排程延遲也不影響。
+
+        Args:
+            ref_stock: 指標股代號（預設 AAPL，成交穩定）
+            lookback_days: 往前查幾個日曆天（需涵蓋連假，預設 10）
+
+        Returns:
+            資料源最新交易日；查詢失敗回傳 None（由呼叫端 fallback）
+        """
+        # 直接用 yfinance 輕量查指標股（只要日期，不走完整 get_stock_price 的批次/欄位處理）
+        try:
+            import yfinance as yf
+            hist = yf.Ticker(ref_stock).history(
+                start=date.today() - timedelta(days=lookback_days),
+                end=date.today() + timedelta(days=1),
+                auto_adjust=False,
+            )
+            if hist is not None and not hist.empty:
+                return hist.index.max().date()
+        except Exception as e:
+            logger.warning(f"查詢最新交易日失敗（指標股 {ref_stock}）: {e}")
+        return None
+
     def get_stats(self) -> dict:
         """取得 API 使用統計"""
         return {
