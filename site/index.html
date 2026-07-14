@@ -734,6 +734,15 @@
       padding: 1px 6px; font-family: inherit; font-size: 12px; color: var(--gold-deep); font-weight: 600;
     }
     .modal-quote { color: var(--gold-deep); font-weight: 600; }
+    /* 自動複製被瀏覽器擋下時（iframe 嵌入無 clipboard 權限），給使用者手動複製 */
+    .manual-copy-box {
+      width: 100%; height: 110px; margin-top: 10px; padding: 10px 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+      line-height: 1.6; color: var(--text); background: #fbf9f4;
+      border: 1px solid var(--gold); border-radius: 10px;
+      resize: vertical; cursor: text;
+    }
+    .manual-copy-box:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
     /* 教學截圖：響應式、點擊開新分頁看原圖 */
     .modal-figure { margin: 6px 0 12px; }
     .modal-figure img {
@@ -1461,9 +1470,64 @@
       document.getElementById('exportModal').classList.remove('show');
     }
 
+    // === 複製到剪貼簿（相容被 iframe 嵌入的情況）===
+    // 本站會被其他網站以 iframe 嵌入。跨域 iframe 中，navigator.clipboard 需要父層
+    // 明確授權（<iframe allow="clipboard-write">），否則直接被瀏覽器拒絕。
+    // 因此這裡：① 先試 Clipboard API ② 失敗改用 execCommand（iframe 中多半仍可用）
+    // ③ 兩者都失敗就回報 false，讓呼叫端顯示可手動複製的內容——絕不能假裝成功，
+    // 否則使用者會貼上剪貼簿裡的舊東西（曾發生「複製內容變得很怪」的回報）。
+    async function copyToClipboard(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (e) {
+        // 落到下面的 execCommand fallback
+      }
+
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-9999px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, text.length);   // iOS Safari 需要
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) return true;
+      } catch (e) {
+        // 兩種方式都失敗
+      }
+
+      return false;
+    }
+
+    // 複製失敗時：把內容攤開讓使用者自己複製（不要讓他以為複製成功了）
+    function showManualCopyModal(text, count, onlyNew) {
+      showExportModal(
+        '無法自動複製，請手動複製',
+        `<p class="modal-lead">這個網站被嵌入在其他頁面中，瀏覽器擋下了自動複製` +
+        `（${count} 檔${onlyNew ? '「新股」' : ''}）。請按照下面兩步：</p>` +
+        `<div class="modal-step" data-n="1">點一下下方文字框，內容會自動全選</div>` +
+        `<div class="modal-step" data-n="2">按 <kbd>${PASTE_KEY.replace('V', 'C')}</kbd> 複製</div>` +
+        `<textarea class="manual-copy-box" readonly onclick="this.select()">${text}</textarea>`,
+        `<button class="modal-btn secondary" onclick="closeExportModal()">我知道了</button>`
+      );
+      // 自動選取，讓使用者直接按複製鍵
+      setTimeout(() => {
+        const box = document.querySelector('.manual-copy-box');
+        if (box) { box.focus(); box.select(); }
+      }, 100);
+    }
+
     // === TradingView Export ===
     // onlyNew=true → 只複製新股；false → 複製目前篩選條件下的全部
-    function exportToTradingView(onlyNew) {
+    async function exportToTradingView(onlyNew) {
       const source = onlyNew
         ? currentVisibleStocks.filter(s => s.isNew)
         : currentVisibleStocks;
@@ -1490,7 +1554,17 @@
       });
 
       const text = symbols.join(',');
-      navigator.clipboard.writeText(text).catch(() => {});
+
+      // 先確認真的複製成功，才顯示成功訊息（避免使用者貼到舊剪貼簿內容）
+      const copied = await copyToClipboard(text);
+
+      if (!copied) {
+        btn.textContent = '請手動複製';
+        setTimeout(() => { btn.textContent = btnLabel; }, 2500);
+        showManualCopyModal(text, symbols.length, onlyNew);
+        return;
+      }
+
       btn.textContent = `已複製 ${symbols.length} 檔`;
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = btnLabel; btn.classList.remove('copied'); }, 2000);
