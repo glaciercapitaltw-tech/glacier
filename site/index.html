@@ -1232,10 +1232,10 @@
         }
       }
       const merged = Object.values(stockMap);
-      // New/old
-      const recentStockIds = getRecentStockIds(dateStr);
+      // New/old：同類型比較（VCP 比 VCP、三線比三線），與 Google Sheet 一致
+      const recentByType = getRecentStockIdsByType(dateStr);
       for (const s of merged) {
-        s.isNew = !recentStockIds.has(s.stock_id);
+        s.isNew = isNewStock(s, recentByType);
         s._date = dateStr;
       }
       sortStocks(merged);
@@ -1297,17 +1297,36 @@
     // 近 N 個交易日內出現過視為「舊股」，N 日內首次出現為「新股」
     const NEW_STOCK_LOOKBACK = 20;
 
-    function getRecentStockIds(dateStr) {
+    // 「同類型比較」：VCP 只跟過去的 VCP 比、三線只跟過去的三線比（與 Google Sheet 一致）。
+    // 不能把兩種類型混成一個聯集——例如 6901 鑽石投資近 20 日上過 7 次「三線」但從未
+    // 進過 VCP 清單，混在一起算會被誤判成「舊股」，但它其實是「VCP 新股」。
+    // 回傳 { vcp: Set(...), sanxian: Set(...) }
+    function getRecentStockIdsByType(dateStr) {
+      const byType = { vcp: new Set(), sanxian: new Set() };
       const idx = ALL_DATES.indexOf(dateStr);
-      if (idx < 0) return new Set();
-      // ALL_DATES 為降冪，dateStr 之後（idx+1 起）為更早的交易日，取近 N 個的聯集
+      if (idx < 0) return byType;
+      // ALL_DATES 為降冪，dateStr 之後（idx+1 起）為更早的交易日，取近 N 個
       const recentDates = ALL_DATES.slice(idx + 1, idx + 1 + NEW_STOCK_LOOKBACK);
-      const ids = new Set();
       for (const d of recentDates) {
         const entries = DATE_INDEX[d];
-        if (entries) for (const e of entries) ids.add(e.stock_id);
+        if (!entries) continue;
+        for (const e of entries) {
+          const bucket = byType[e.type];
+          if (bucket) bucket.add(e.stock_id);
+        }
       }
-      return ids;
+      return byType;
+    }
+
+    // 一檔股票只要在「它所屬的任一類型」中是首見，就算新股。
+    // 例：6901 當日同時是 VCP 與三線，VCP 首見（新）、三線出現過（舊）→ 標為新股，
+    // 與 Sheet 的 VCP 清單一致（Sheet 兩張表各自標記，前端合併顯示時取「任一為新」）。
+    function isNewStock(stock, recentByType) {
+      const types = [];
+      if (stock.is_strong || stock.is_new_high) types.push('vcp');
+      if (stock.is_sanxian) types.push('sanxian');
+      if (!types.length) return false;
+      return types.some(t => !recentByType[t].has(stock.stock_id));
     }
 
     function getFilteredStocksForDate(dateStr) {
@@ -1403,8 +1422,9 @@
 
     function renderAppearanceRow(a, stockId) {
       const tags = buildTags(a, a.date, stockId);
-      const recentIds = getRecentStockIds(a.date);
-      const isNew = recentIds.size === 0 || !recentIds.has(stockId);
+      // 同類型比較（與 Sheet 一致）：VCP 比 VCP、三線比三線
+      const recentByType = getRecentStockIdsByType(a.date);
+      const isNew = isNewStock({ ...a, stock_id: stockId }, recentByType);
       const newOldCls = isNew ? 'is-new' : 'is-old';
       const newOldLabel = isNew ? '<span class="new-old-label is-new">新</span>' : '<span class="new-old-label is-old">舊</span>';
       let details = '';
