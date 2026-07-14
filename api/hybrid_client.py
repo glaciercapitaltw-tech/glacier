@@ -324,27 +324,61 @@ class HybridClient:
     def get_latest_trading_date(
         self, ref_stock: str = "2330", lookback_days: int = 14
     ) -> Optional[date]:
-        """查詢資料源實際的最新交易日（用指標股近期資料的最後一天）。
+        """查詢資料源實際的最新交易日。
 
         由資料源決定，能自動跳過颱風假、臨時休市等「交易日曆不知道」的休市日，
         且不依賴 date.today()，排程延遲也不影響。
 
         Args:
-            ref_stock: 指標股代號（預設台積電 2330，成交穩定）
+            ref_stock: FinMind 單檔查詢用的指標股（預設台積電 2330）。
+                yfinance 備援不用它——備援走多檔投票（見 YFinanceClient）。
             lookback_days: 往前查幾個日曆天（需涵蓋連假，預設 14）
 
         Returns:
-            資料源最新交易日；查詢失敗回傳 None（由呼叫端 fallback）
+            最新交易日；兩個來源都查不到回傳 None（呼叫端應退回交易日曆）
+
+        Warning:
+            兩個資料源各有一種「壞得不誠實」的方式，這裡的寫法都是踩坑換來的：
+
+            1. FinMind 必須用 get_latest_trading_date()（帶 data_id 單檔查），
+               不能走 get_stock_price()：後者不帶 data_id、一律拉全市場，而台股
+               全市場單日就約 4 萬筆、已逼近 FinMind 單次上限，只要查超過一天就
+               會被「靜默截斷」（仍回 success，卻只給區間第一天）。2026-07-14
+               就因此把最新交易日誤判成 6/30、拿兩週前的資料跑篩選。
+
+            2. yfinance 會為「休市日」捏造資料：2026-07-10 台股因颱風全日休市，
+               yfinance 卻給了該日 OHLC（全部等於 7/09 收盤價）。2026-07-13 曾
+               因此被騙去抓「7/10」，把整批假股價寫進 DB。
+               → 破綻是 **成交量 = 0**（休市日不可能有成交），所以 yfinance 備援
+                 只採信 Volume > 0 的日期。真實交易日即使 Close 還是 NaN
+                 （盤中/未結算），Volume 仍然 > 0。
         """
-        start = date.today() - timedelta(days=lookback_days)
+        # 主要來源：FinMind（單檔查詢，能正確反映颱風/臨時休市）
         try:
-            df = self.get_stock_price(
-                start_date=start, end_date=date.today(), stock_ids=[ref_stock]
+            latest = self._finmind.get_latest_trading_date(
+                ref_stock=ref_stock, lookback_days=lookback_days
             )
-            if df is not None and not df.empty:
-                return pd.to_datetime(df["date"]).max().date()
+            if latest:
+                return latest
+            self._log_fallback(
+                "get_latest_trading_date", "FinMind", "yfinance", "查無資料"
+            )
         except Exception as e:
-            logger.warning(f"查詢最新交易日失敗（指標股 {ref_stock}）: {e}")
+            self._log_fallback(
+                "get_latest_trading_date", "FinMind", "yfinance", f"API 錯誤: {e}"
+            )
+
+        # 備援：yfinance（多檔指標股投票，並濾掉 Volume=0 的假交易日，見上方 Warning）
+        try:
+            latest = self._yfinance.get_latest_trading_date(
+                lookback_days=lookback_days
+            )
+            if latest:
+                logger.info(f"[備援] yfinance 最新交易日（已濾除休市日）= {latest}")
+                return latest
+        except Exception as e:
+            logger.error(f"[備援] yfinance 查詢最新交易日也失敗: {e}")
+
         return None
 
     def get_stats(self) -> dict:

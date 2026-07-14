@@ -19,6 +19,11 @@ from utils.daily_verifier import DailyVerifier
 from utils.objective_verifier import ObjectiveVerifier
 from utils.price_gap_filler import fill_price_gaps
 
+# 資料源回報的「最新交易日」與交易日曆最近交易日的最大容許落差（日曆天）。
+# 超過就判定資料源給了過期/異常資料，不予採信（2026-07-14 FinMind 曾回 6/30）。
+# 抓 5 天：足以涵蓋連假（資料源正常落後），又能擋掉「倒退兩週」這種明顯異常。
+MAX_SOURCE_LAG_DAYS = 5
+
 
 class DailyTask:
     """
@@ -72,16 +77,27 @@ class DailyTask:
             執行結果統計
         """
         # 自動模式（未指定日期）：問「資料源」最新交易日來決定要抓哪天，而非 date.today()。
-        # 資料源（FinMind/yfinance）自己知道颱風假、臨時休市（沒交易就沒資料），
-        # 也不受 GitHub 排程延遲影響——是最可靠的「該抓哪天」單一事實來源。
-        # fallback 順序：資料源最新日 → 交易日曆最近交易日 → today。
+        # 資料源自己知道颱風假、臨時休市（沒交易就沒資料），也不受排程延遲影響。
+        # 但資料源可能回「過期的爛資料」（2026-07-14 FinMind 回 6/30 害當天用兩週前資料跑），
+        # 所以一定要做合理性驗證：與交易日曆的最近交易日差距過大就不採信。
+        # fallback 順序：資料源最新日（通過驗證）→ 交易日曆最近交易日。
         if target_date is None:
-            original_date = self.client.get_latest_trading_date()
-            if original_date:
+            calendar_latest = TradingCalendar.get_latest_trading_day(date.today())
+            source_latest = self.client.get_latest_trading_date()
+
+            if source_latest and (calendar_latest - source_latest).days <= MAX_SOURCE_LAG_DAYS:
+                original_date = source_latest
                 logger.info(f"自動模式：資料源最新交易日 = {original_date}")
             else:
-                original_date = TradingCalendar.get_latest_trading_day(date.today())
-                logger.warning(f"資料源查詢失敗，退回交易日曆最近交易日: {original_date}")
+                if source_latest:
+                    logger.error(
+                        f"資料源回傳 {source_latest}，與交易日曆最近交易日 {calendar_latest} "
+                        f"差距超過 {MAX_SOURCE_LAG_DAYS} 天，判定為異常資料（不採信）"
+                    )
+                else:
+                    logger.warning("資料源查詢失敗")
+                original_date = calendar_latest
+                logger.warning(f"改用交易日曆最近交易日: {original_date}")
         else:
             original_date = target_date
 

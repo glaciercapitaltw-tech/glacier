@@ -20,6 +20,10 @@ from utils.objective_verifier import ObjectiveVerifier
 from utils.price_gap_filler import fill_price_gaps
 from utils.internal_split_detector import detect_and_fix_internal_splits
 
+# 資料源回報的「最新交易日」與交易日曆最近交易日的最大容許落差（日曆天）。
+# 超過就判定資料源給了過期/異常資料，不予採信（台股 2026-07-14 曾被 FinMind 回 6/30 害到）。
+MAX_SOURCE_LAG_DAYS = 5
+
 
 class USDailyTask:
     """
@@ -73,16 +77,26 @@ class USDailyTask:
             執行結果統計
         """
         # 自動模式（未指定日期）：問「資料源」最新交易日來決定要抓哪天，而非 date.today()。
-        # 資料源（yfinance）自己知道臨時休市（沒交易就沒資料），也不受 GitHub 排程延遲影響
-        # ——是最可靠的「該抓哪天」單一事實來源。
-        # fallback 順序：資料源最新日 → 交易日曆最近交易日 → today。
+        # 資料源自己知道臨時休市（沒交易就沒資料），也不受排程延遲影響。
+        # 但資料源可能回過期/異常的日期（台股 2026-07-14 曾被 FinMind 截斷回 6/30），
+        # 所以一定要做合理性驗證：與交易日曆最近交易日差距過大就不採信。
         if target_date is None:
-            original_date = self.client.get_latest_trading_date()
-            if original_date:
+            calendar_latest = USMarketCalendar.get_latest_trading_day(date.today())
+            source_latest = self.client.get_latest_trading_date()
+
+            if source_latest and (calendar_latest - source_latest).days <= MAX_SOURCE_LAG_DAYS:
+                original_date = source_latest
                 logger.info(f"自動模式：資料源最新交易日 = {original_date}")
             else:
-                original_date = USMarketCalendar.get_latest_trading_day(date.today())
-                logger.warning(f"資料源查詢失敗，退回交易日曆最近交易日: {original_date}")
+                if source_latest:
+                    logger.error(
+                        f"資料源回傳 {source_latest}，與交易日曆最近交易日 {calendar_latest} "
+                        f"差距超過 {MAX_SOURCE_LAG_DAYS} 天，判定為異常資料（不採信）"
+                    )
+                else:
+                    logger.warning("資料源查詢失敗")
+                original_date = calendar_latest
+                logger.warning(f"改用交易日曆最近交易日: {original_date}")
         else:
             original_date = target_date
 
