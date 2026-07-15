@@ -11,7 +11,7 @@
     stock_name → n, market → m, industry → i
     date → d, type → t (vcp/sx)
     is_strong → s, is_new_high → h
-    return_20d → r, gap_ratio → g
+    return_20d → r（VCP 與三線皆用；gap_ratio → g 已停用）
 
 用法：
     python scripts/export_to_json_v2.py
@@ -115,8 +115,9 @@ def query_results(db_path, table, market, sector_col="industry_category"):
             r["h"] = bool(row["is_new_high_list"])
         else:
             r["t"] = "sx"
-            r["g"] = safe_round(
-                row["gap_ratio"] * 100 if row["gap_ratio"] is not None else None
+            # 三線改顯示 20 日漲幅（原突破差距 gap_ratio 已從前端移除）
+            r["r"] = safe_round(
+                row["return_20d"] * 100 if row["return_20d"] is not None else None
             )
 
         results.append(r)
@@ -182,8 +183,8 @@ def main():
             if r.get("r") is not None:
                 entry["r"] = r["r"]
         else:  # sanxian
-            if r.get("g") is not None:
-                entry["g"] = r["g"]
+            if r.get("r") is not None:
+                entry["r"] = r["r"]
 
         months_data[month].append(entry)
 

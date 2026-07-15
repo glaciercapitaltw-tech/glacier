@@ -127,6 +127,7 @@ class USSanxianFilter:
             "today_price",
             "second_high_55d",
             "gap_ratio",
+            "return_20d",
         ]
         result_df = result_df[[c for c in output_columns if c in result_df.columns]]
 

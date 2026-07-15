@@ -329,6 +329,9 @@ class USMovingAverageCalculator:
         # 計算 55 日次高價
         df = cls.calculate_second_high(df, period=55)
 
+        # 計算 20 日報酬率（供前端顯示，與 VCP 一致）
+        df = cls.calculate_returns(df, [20])
+
         logger.info("美股三線開花計算資料準備完成")
         return df
 

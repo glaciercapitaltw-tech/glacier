@@ -509,8 +509,8 @@
     .sheet-scroll { overflow-x: auto; }
     .sheet-head, .sheet-row {
       display: grid;
-      grid-template-columns: 48px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px 98px;
-      align-items: stretch; min-width: 690px;
+      grid-template-columns: 48px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px;
+      align-items: stretch; min-width: 592px;
     }
     /* 欄位標題列：深藍底、凍結在頂 */
     .sheet-head {
@@ -881,12 +881,8 @@
       <button class="filter-btn" data-filter="sanxian" data-group="type">三線開花</button>
     </div>
 
-    <!-- Sort (date mode only) -->
+    <!-- 匯出工具列（date mode only）；清單固定依「新股優先 → 20 日漲幅」排序 -->
     <div class="sort-row" id="sortRow">
-      <span class="sort-label">排序</span>
-      <button class="sort-btn active" data-sort="new-first">新股優先</button>
-      <button class="sort-btn" data-sort="return">20日漲幅</button>
-      <button class="sort-btn" data-sort="gap">突破差距</button>
       <button class="sort-btn tv-btn" id="tvExportNewBtn" title="只複製「新股」的 TradingView 清單">複製TV清單（新股）</button>
       <button class="sort-btn tv-btn" id="tvExportAllBtn" title="複製目前篩選條件下全部股票的 TradingView 清單">複製TV清單（全部）</button>
     </div>
@@ -936,7 +932,6 @@
     let ALL_DATES = [];        // sorted desc, from all loaded months
     let currentMode = 'date';
     let activeFilters = { market: 'tw', types: new Set() };  // market: tw|us（頂部主切換）；types: multi-select
-    let currentSort = 'new-first';
     let loadingMonths = new Set();
     let currentVisibleStocks = [];  // 目前畫面上的股票 [{stock_id, market}, ...]
 
@@ -1110,17 +1105,16 @@
         for (const e of stock.appearances) {
           const d = e.date;
           if (!byDate[d]) {
-            byDate[d] = { date: d, is_strong: false, is_new_high: false, is_sanxian: false, return_20d: null, gap_ratio: null };
+            byDate[d] = { date: d, is_strong: false, is_new_high: false, is_sanxian: false, return_20d: null };
           }
           const bd = byDate[d];
           if (e.type === 'vcp') {
             if (e.is_strong) bd.is_strong = true;
             if (e.is_new_high) bd.is_new_high = true;
-            if (e.return_20d != null) bd.return_20d = e.return_20d;
           } else {
             bd.is_sanxian = true;
-            if (e.gap_ratio != null) bd.gap_ratio = e.gap_ratio;
           }
+          if (e.return_20d != null) bd.return_20d = e.return_20d;
         }
         const merged = Object.values(byDate).sort((a, b) => b.date.localeCompare(a.date));
         const appearanceHtml = merged.map(a => renderAppearanceRow(a, stock.stock_id)).join('');
@@ -1218,18 +1212,18 @@
         if (!stockMap[e.stock_id]) {
           stockMap[e.stock_id] = {
             stock_id: e.stock_id, stock_name: e.stock_name, market: e.market, industry: e.industry,
-            is_strong: false, is_new_high: false, is_sanxian: false, return_20d: null, gap_ratio: null,
+            is_strong: false, is_new_high: false, is_sanxian: false, return_20d: null,
           };
         }
         const s = stockMap[e.stock_id];
         if (e.type === 'vcp') {
           if (e.is_strong) s.is_strong = true;
           if (e.is_new_high) s.is_new_high = true;
-          if (e.return_20d != null) s.return_20d = e.return_20d;
         } else {
           s.is_sanxian = true;
-          if (e.gap_ratio != null) s.gap_ratio = e.gap_ratio;
         }
+        // VCP 與三線皆有 20 日漲幅（同股同日值相同）
+        if (e.return_20d != null) s.return_20d = e.return_20d;
       }
       const merged = Object.values(stockMap);
       // New/old：同類型比較（VCP 比 VCP、三線比三線），與 Google Sheet 一致
@@ -1256,7 +1250,7 @@
       html += `<div class="sheet"><div class="sheet-scroll">
         <div class="sheet-head">
           <span>新舊</span><span>股號</span><span>股名</span><span>類型</span><span>產業</span>
-          <span class="num">20日漲幅</span><span class="num">突破差距</span>
+          <span class="num">20日漲幅</span>
         </div>
         ${rows}
       </div></div>`;
@@ -1289,7 +1283,6 @@
         <span class="sheet-cell sheet-tags">${tags}</span>
         <span class="sheet-cell c-industry">${escapeHtml(s.industry)}</span>
         ${numCell(s.return_20d)}
-        ${numCell(s.gap_ratio)}
       </div>`;
     }
 
@@ -1351,16 +1344,13 @@
       return Object.values(map);
     }
 
+    // 固定排序：新股優先，其次依 20 日漲幅降冪（排序 UI 已移除）
     function sortStocks(arr) {
       const safeNum = v => (v != null && isFinite(v)) ? v : -Infinity;
-      switch (currentSort) {
-        case 'return':
-          arr.sort((a, b) => safeNum(b.return_20d) - safeNum(a.return_20d)); break;
-        case 'gap':
-          arr.sort((a, b) => safeNum(b.gap_ratio) - safeNum(a.gap_ratio)); break;
-        default: // new-first（預設）：新股優先，其次依 20 日漲幅
-          arr.sort((a, b) => { if (a.isNew !== b.isNew) return a.isNew ? -1 : 1; return safeNum(b.return_20d) - safeNum(a.return_20d); });
-      }
+      arr.sort((a, b) => {
+        if (a.isNew !== b.isNew) return a.isNew ? -1 : 1;
+        return safeNum(b.return_20d) - safeNum(a.return_20d);
+      });
     }
 
     const isMobile = () => window.innerWidth <= 600;
@@ -1432,11 +1422,6 @@
         const cls = a.return_20d >= 0 ? 'positive' : 'negative';
         const sign = a.return_20d >= 0 ? '+' : '';
         details += `<span class="detail-value ${cls}"><span class="detail-label">20日漲幅</span>${sign}${a.return_20d.toFixed(2)}%</span>`;
-      }
-      if (a.gap_ratio != null) {
-        const cls = a.gap_ratio >= 0 ? 'positive' : 'negative';
-        const sign = a.gap_ratio >= 0 ? '+' : '';
-        details += `<span class="detail-value ${cls}"><span class="detail-label">突破差距</span>${sign}${a.gap_ratio.toFixed(2)}%</span>`;
       }
       return `<div class="appearance-item ${newOldCls}">
         <span class="date-text">${a.date}</span>
@@ -1666,15 +1651,6 @@
           }
         }
 
-        triggerCurrentSearch();
-      });
-    });
-
-    document.querySelectorAll('.sort-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentSort = btn.dataset.sort;
         triggerCurrentSearch();
       });
     });
