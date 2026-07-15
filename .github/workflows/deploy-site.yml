@@ -64,17 +64,8 @@ jobs:
           fi
         continue-on-error: true
 
-      # 回填三線開花的 20 日漲幅（歷史 filter_result 的 sanxian return_20d 原為 NULL）
-      # export 本身為純標準庫，回填需 pandas
-      - name: Install backfill deps
-        run: pip install pandas
-
-      - name: Backfill sanxian return_20d
-        run: |
-          python scripts/backfill_sanxian_return.py || echo "⚠️ 台股回填略過"
-          python scripts/backfill_sanxian_return.py --us || echo "⚠️ 美股回填略過"
-
       # 匯出 JSON（v2 分月格式）
+      # 三線 return_20d 已由 sanxian_filter 每日寫入 + Release DB 一次性回填（scripts/backfill_sanxian_return.py）
       - name: Export filter results to JSON
         run: python scripts/export_to_json_v2.py
 
