@@ -278,6 +278,12 @@
       border-color: var(--accent); color: var(--text);
       background: rgba(129, 140, 248, 0.08);
     }
+    /* 目前選中的日期：金色實心，與類型/市場 active 一致 */
+    .date-quick-btn.active {
+      background: linear-gradient(135deg, var(--accent-solid), var(--gold-deep));
+      border-color: transparent; color: #081320; font-weight: 700;
+      box-shadow: 0 2px 12px var(--accent-glow);
+    }
 
     /* Filters */
     .filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -509,8 +515,8 @@
     .sheet-scroll { overflow-x: auto; }
     .sheet-head, .sheet-row {
       display: grid;
-      grid-template-columns: 48px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px;
-      align-items: stretch; min-width: 592px;
+      grid-template-columns: 48px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px 56px;
+      align-items: stretch; min-width: 648px;
     }
     /* 欄位標題列：深藍底、凍結在頂 */
     .sheet-head {
@@ -531,6 +537,7 @@
       transition: background 0.14s ease;
     }
     .sheet-row:nth-child(even) { background: #faf8f2; }
+    .sheet-row[data-sid] { cursor: pointer; }  /* 可點：跳到該股歷史 */
     .sheet-row:hover { background: rgba(176, 151, 101, 0.12); }
     .sheet-row.is-new { box-shadow: inset 3px 0 0 0 var(--green); }
     .sheet-cell {
@@ -548,6 +555,33 @@
     .sheet-cell.c-name { font-weight: 500; color: var(--text); white-space: nowrap; text-overflow: ellipsis; }
     .sheet-cell.c-industry { font-size: 12px; color: var(--text-dim); white-space: nowrap; text-overflow: ellipsis; }
     .sheet-cell.sheet-tags { flex-wrap: wrap; gap: 4px; }
+    /* 連結欄：置中的可點圖示（有自訂連結才顯示） */
+    .sheet-cell.c-link { justify-content: center; overflow: visible; }
+    .sheet-head .c-link-head { justify-content: center; }
+    .link-btn { text-decoration: none; font-size: 15px; line-height: 1; opacity: 0.8; transition: opacity 0.15s ease, transform 0.15s ease; }
+    .link-btn:hover { opacity: 1; transform: scale(1.18); }
+
+    /* 大盤基準列：插在新股/舊股交界，金色底當分隔線 */
+    .sheet-row.market-row { background: var(--gold); border-top: 1px solid var(--gold-bright); }
+    .sheet-row.market-row:hover { background: var(--gold); }
+    .market-row .market-label {
+      grid-column: 1 / 6; display: flex; align-items: center; gap: 9px;
+      padding: 10px 12px; color: var(--navy); font-weight: 700; font-size: 13px; letter-spacing: 0.5px;
+      min-width: 0; overflow: hidden;
+    }
+    .market-row .mk-tag {
+      font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 5px;
+      background: var(--navy); color: #fff; letter-spacing: 2px; flex-shrink: 0;
+    }
+    .market-row .mk-sub { font-size: 11px; font-weight: 400; color: rgba(12, 36, 67, 0.62); }
+    .market-row .market-num {
+      border-right: none; color: var(--navy);
+      justify-content: flex-end; font-variant-numeric: tabular-nums; font-weight: 700;
+      padding: 9px 10px; display: flex; align-items: center;
+    }
+    .market-row .market-num.positive { color: #0e6b39; }
+    .market-row .market-num.negative { color: #a81f2c; }
+    .market-row .market-num.dash { color: rgba(12, 36, 67, 0.5); font-weight: 400; }
 
     /* Date stock row (legacy) */
     .date-stock-row {
@@ -799,6 +833,12 @@
     }
     .toast-body { flex: 1; min-width: 0; }
     .toast-title { font-size: 14px; font-weight: 800; color: var(--gold-bright); margin-bottom: 5px; letter-spacing: 0.3px; }
+    /* 警示變體（紅色）：如「至少選一個類型」 */
+    .toast-wrap.warn .toast-icon {
+      background: linear-gradient(140deg, #b3262f, #e05353);
+      color: #fff; box-shadow: 0 4px 14px rgba(211, 63, 63, 0.40);
+    }
+    .toast-wrap.warn .toast-title { color: var(--red); }
     .toast-desc { font-size: 12.5px; line-height: 1.6; color: var(--text-mid); }
     .toast-desc b { color: var(--text); font-weight: 700; }
     .toast-desc kbd {
@@ -876,9 +916,9 @@
     <!-- 篩選類型（市場已由頂部主切換決定）-->
     <div class="filters">
       <span class="filter-label">類型</span>
-      <button class="filter-btn" data-filter="strong" data-group="type">VCP強勢</button>
-      <button class="filter-btn" data-filter="newhigh" data-group="type">VCP新高</button>
-      <button class="filter-btn" data-filter="sanxian" data-group="type">三線開花</button>
+      <button class="filter-btn active" data-filter="strong" data-group="type">強勢</button>
+      <button class="filter-btn active" data-filter="newhigh" data-group="type">新高</button>
+      <button class="filter-btn active" data-filter="sanxian" data-group="type">三線開花</button>
     </div>
 
     <!-- 匯出工具列（date mode only）；清單固定依「新股優先 → 20 日漲幅」排序 -->
@@ -931,7 +971,7 @@
     let STOCK_INDEX = {};      // { stock_id -> [ entries with date ] } reverse index for search
     let ALL_DATES = [];        // sorted desc, from all loaded months
     let currentMode = 'date';
-    let activeFilters = { market: 'tw', types: new Set() };  // market: tw|us（頂部主切換）；types: multi-select
+    let activeFilters = { market: 'tw', types: new Set(['strong', 'newhigh', 'sanxian']) };  // 預設全選；至少須選一個
     let loadingMonths = new Set();
     let currentVisibleStocks = [];  // 目前畫面上的股票 [{stock_id, market}, ...]
 
@@ -987,7 +1027,7 @@
           const stock = INDEX.stocks[sid];
           if (!stock) continue;
           const entry = {
-            stock_id: sid, stock_name: stock.n, market: stock.m, industry: stock.i,
+            stock_id: sid, stock_name: stock.n, market: stock.m, industry: stock.i, link: stock.l || null,
             date: e.d, type: e.t === 'sx' ? 'sanxian' : 'vcp',
             is_strong: !!e.s, is_new_high: !!e.h,
             return_20d: e.r ?? null, gap_ratio: e.g ?? null,
@@ -1040,6 +1080,14 @@
           document.getElementById('dateInput').value = btn.dataset.date;
           searchByDate(btn.dataset.date);
         });
+      });
+      syncDateChipHighlight(dateInput.value);
+    }
+
+    // 標示目前選中的日期 chip（金色實心）
+    function syncDateChipHighlight(dateStr) {
+      document.querySelectorAll('.date-quick-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.date === dateStr);
       });
     }
 
@@ -1099,6 +1147,10 @@
     }
 
     function renderStockResults(stocks) {
+      // 保留目前展開的卡片：改篩選/重渲染時不要收合，只更新內容
+      const openIds = new Set();
+      document.querySelectorAll('.stock-card.open .stock-id').forEach(el => openIds.add(el.textContent));
+
       let html = stocks.map(stock => {
         // Group by date using pre-filtered appearances
         const byDate = {};
@@ -1142,6 +1194,14 @@
         html += `<button class="load-more-btn" onclick="loadMoreMonths()">載入更多歷史（已載入 ${loadedCount}/${INDEX.months.length} 月）</button>`;
       }
       document.getElementById('content').innerHTML = `<div class="results">${html}</div>`;
+
+      // 還原展開狀態（保持展開，只有內容依篩選更新）
+      if (openIds.size > 0) {
+        document.querySelectorAll('.stock-card').forEach(card => {
+          const idEl = card.querySelector('.stock-id');
+          if (idEl && openIds.has(idEl.textContent)) card.classList.add('open');
+        });
+      }
     }
 
     async function loadMoreMonths() {
@@ -1183,6 +1243,7 @@
           entries = DATE_INDEX[closest];
         }
       }
+      syncDateChipHighlight(dateStr);
       if (!entries || entries.length === 0) {
         document.getElementById('content').innerHTML =
           `<div class="empty-state"><div class="icon">&#128533;</div><p>${dateStr} 沒有篩選資料</p></div>`;
@@ -1211,7 +1272,7 @@
       for (const e of entries) {
         if (!stockMap[e.stock_id]) {
           stockMap[e.stock_id] = {
-            stock_id: e.stock_id, stock_name: e.stock_name, market: e.market, industry: e.industry,
+            stock_id: e.stock_id, stock_name: e.stock_name, market: e.market, industry: e.industry, link: e.link || null,
             is_strong: false, is_new_high: false, is_sanxian: false, return_20d: null,
           };
         }
@@ -1243,14 +1304,22 @@
       let html = `<div class="section-header">
         <div class="section-title"><span>${dateStr}</span></div>
         <div class="section-count">
-          共 ${merged.length} 檔（新 ${newCount} / 舊 ${merged.length - newCount} / VCP強勢 ${strongCount} / VCP新高 ${newHighCount} / 三線開花 ${sanxianCount}${bothCount > 0 ? ` / 同時上榜 ${bothCount}` : ''}）
+          共 ${merged.length} 檔（新 ${newCount} / 舊 ${merged.length - newCount} / 強勢 ${strongCount} / 新高 ${newHighCount} / 三線開花 ${sanxianCount}${bothCount > 0 ? ` / 同時上榜 ${bothCount}` : ''}）
         </div>
       </div>`;
-      const rows = merged.map(s => renderDateStockRow(s)).join('');
+      // 大盤基準列：插在新股/舊股交界（新股在上 → 大盤基準 → 舊股在下）
+      const mrMap = (INDEX.mr && INDEX.mr[activeFilters.market]) || {};
+      const marketReturn = mrMap[dateStr] ?? null;
+      const marketLabel = activeFilters.market === 'us' ? 'S&P 500' : '加權指數';
+      const rowArr = merged.map(s => renderDateStockRow(s));
+      const splitIdx = merged.findIndex(s => !s.isNew);
+      const insertAt = splitIdx === -1 ? rowArr.length : splitIdx;
+      rowArr.splice(insertAt, 0, renderMarketRow(marketReturn, marketLabel));
+      const rows = rowArr.join('');
       html += `<div class="sheet"><div class="sheet-scroll">
         <div class="sheet-head">
           <span>新舊</span><span>股號</span><span>股名</span><span>類型</span><span>產業</span>
-          <span class="num">20日漲幅</span>
+          <span class="num">20日漲幅</span><span class="c-link-head">連結</span>
         </div>
         ${rows}
       </div></div>`;
@@ -1276,13 +1345,30 @@
         return `<span class="sheet-cell num ${cls}">${sign}${v.toFixed(2)}%</span>`;
       };
 
-      return `<div class="sheet-row ${newOldCls}">
+      return `<div class="sheet-row ${newOldCls}" data-sid="${escapeHtml(s.stock_id)}" title="點擊查看 ${escapeHtml(s.stock_name)} 的歷史上榜紀錄">
         <span class="sheet-cell">${newOldLabel}</span>
         <span class="sheet-cell"><span class="stock-id">${escapeHtml(s.stock_id)}</span></span>
         <span class="sheet-cell c-name">${escapeHtml(s.stock_name)}</span>
         <span class="sheet-cell sheet-tags">${tags}</span>
         <span class="sheet-cell c-industry">${escapeHtml(s.industry)}</span>
         ${numCell(s.return_20d)}
+        <span class="sheet-cell c-link">${s.link ? `<a class="link-btn" href="${escapeHtml(s.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="開啟連結">&#128279;</a>` : ''}</span>
+      </div>`;
+    }
+
+    // 大盤基準列（新股/舊股之間的分隔線，顯示大盤 20 日漲幅）
+    function renderMarketRow(mr, label) {
+      let valHtml;
+      if (mr == null) {
+        valHtml = `<span class="market-num dash">-</span>`;
+      } else {
+        const cls = mr >= 0 ? 'positive' : 'negative';
+        const sign = mr >= 0 ? '+' : '';
+        valHtml = `<span class="market-num ${cls}">${sign}${mr.toFixed(2)}%</span>`;
+      }
+      return `<div class="sheet-row market-row">
+        <span class="market-label"><span class="mk-tag">大盤</span>${label}<span class="mk-sub">20日漲幅基準</span></span>
+        ${valHtml}
       </div>`;
     }
 
@@ -1369,8 +1455,8 @@
       let tags = '';
       const m = isMobile();
       const dataAttr = dateStr && stockId ? ` data-date="${dateStr}" data-sid="${stockId}"` : '';
-      if (item.is_strong) tags += `<span class="tag strong"${dataAttr} data-tt="vs">${m ? 'V強' : 'VCP強勢'}</span> `;
-      if (item.is_new_high) tags += `<span class="tag newhigh"${dataAttr} data-tt="vh">${m ? 'V新高' : 'VCP新高'}</span> `;
+      if (item.is_strong) tags += `<span class="tag strong"${dataAttr} data-tt="vs">${m ? '強' : '強勢'}</span> `;
+      if (item.is_new_high) tags += `<span class="tag newhigh"${dataAttr} data-tt="vh">${m ? '新高' : '新高'}</span> `;
       if (item.is_sanxian) tags += `<span class="tag sanxian"${dataAttr} data-tt="sx">${m ? '三花' : '三線開花'}</span> `;
       return tags;
     }
@@ -1455,10 +1541,11 @@
     // === 操作提示 Toast ===
     const PASTE_KEY = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘V' : 'Ctrl+V';
     let _toastTimer;
-    function showToast(title, descHtml, ms = 8000) {
+    function showToast(title, descHtml, ms = 8000, variant = '') {
       document.getElementById('toastTitle').textContent = title;
       document.getElementById('toastDesc').innerHTML = descHtml;
       const w = document.getElementById('toastWrap');
+      w.classList.toggle('warn', variant === 'warn');  // 紅色警示變體
       w.classList.add('show');
       clearTimeout(_toastTimer);
       _toastTimer = setTimeout(() => w.classList.remove('show'), ms);
@@ -1642,17 +1729,40 @@
         const group = btn.dataset.group;
 
         if (group === 'type') {
-          // 類型：多選 toggle
-          btn.classList.toggle('active');
+          // 類型：多選 toggle，但至少須保留一個
           if (btn.classList.contains('active')) {
-            activeFilters.types.add(f);
-          } else {
+            if (activeFilters.types.size <= 1) {
+              const icon = document.getElementById('toastIcon');
+              if (icon) icon.innerHTML = '&#9888;'; // ⚠
+              showToast('至少選一個類型', '請保留「強勢 / 新高 / 三線開花」其中至少一項才能顯示清單。', 3500, 'warn');
+              return; // 阻止取消最後一個
+            }
+            btn.classList.remove('active');
             activeFilters.types.delete(f);
+          } else {
+            btn.classList.add('active');
+            activeFilters.types.add(f);
           }
         }
 
         triggerCurrentSearch();
       });
+    });
+
+    // 清單點個股 → 切到「搜尋股票」看該檔歷史上榜紀錄
+    function goToStockHistory(stockId) {
+      currentMode = 'stock';
+      document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === 'stock'));
+      document.getElementById('stockMode').classList.remove('hidden');
+      document.getElementById('dateMode').classList.add('hidden');
+      document.getElementById('sortRow').classList.add('hidden');
+      document.getElementById('searchInput').value = stockId;
+      searchStock(stockId);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    document.addEventListener('click', (e) => {
+      const row = e.target.closest('.sheet-row[data-sid]');
+      if (row && !e.target.closest('.tag')) goToStockHistory(row.dataset.sid);
     });
 
     // Floating tooltip: attached to <body> so it escapes the sheet's overflow

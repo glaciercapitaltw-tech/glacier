@@ -152,6 +152,17 @@ class USDailyTask:
                 logger.error("無法取得美股股票清單，任務結束")
                 return result
 
+            # Step 1.5: 同步自訂產業/連結（Google Sheet「自訂產業連結」分頁 → DB）
+            try:
+                master = {sid: (info.get("stock_name") or "") for sid, info in stock_info.items()}
+                overrides = self.exporter.sync_custom_overrides(master)
+                if overrides is not None:
+                    self.db.replace_custom_overrides(overrides)
+                else:
+                    logger.warning("美股自訂欄位同步回傳 None（讀取失敗），沿用 DB 既有值")
+            except Exception as e:
+                logger.warning(f"美股自訂欄位同步失敗（不影響後續流程）: {e}")
+
             # Step 2: 取得並儲存股價（批量查詢，下載 2 天供分割偵測）
             price_count = self._fetch_and_save_prices(target_date, stock_info)
             result["price_count"] = price_count

@@ -126,6 +126,57 @@ def query_results(db_path, table, market, sector_col="industry_category"):
     return results
 
 
+def query_market_returns(db_path, table, col):
+    """計算大盤 20 日漲幅（pct_change(20)，與 VCP market_return 一致）
+
+    Returns:
+        { "2026-07-14": 1.29, ... }  百分比、四捨五入 2 位
+    """
+    if not os.path.exists(db_path):
+        return {}
+    conn = sqlite3.connect(db_path)
+    rows = [
+        (str(d)[:10], v)
+        for d, v in conn.execute(f"SELECT date, {col} FROM {table} ORDER BY date")
+        if v is not None
+    ]
+    conn.close()
+
+    out = {}
+    for i in range(20, len(rows)):
+        d, v = rows[i]
+        prev = rows[i - 20][1]
+        if prev:
+            out[d] = round((v / prev - 1) * 100, 2)
+    return out
+
+
+def query_custom_overrides(db_path, table):
+    """讀取自訂欄位（產業別1/2、連結），供 Page 覆蓋顯示用
+
+    Returns:
+        { stock_id: {"i1":.., "i2":.., "link":..} }  只含有填值的股
+    """
+    if not os.path.exists(db_path):
+        return {}
+    conn = sqlite3.connect(db_path)
+    cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    if not {"custom_industry1", "custom_industry2", "custom_link"}.issubset(cols):
+        conn.close()
+        return {}
+    out = {}
+    for sid, i1, i2, link in conn.execute(
+        f"SELECT stock_id, custom_industry1, custom_industry2, custom_link FROM {table}"
+    ):
+        i1 = (i1 or "").strip()
+        i2 = (i2 or "").strip()
+        link = (link or "").strip()
+        if i1 or i2 or link:
+            out[sid] = {"i1": i1, "i2": i2, "link": link}
+    conn.close()
+    return out
+
+
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     MONTHS_DIR.mkdir(parents=True, exist_ok=True)
@@ -165,6 +216,23 @@ def main():
     for sid, info in stocks.items():
         info["ms"] = sorted(stock_months[sid], reverse=True)
 
+    # === 套用自訂覆蓋（產業別1/2 覆蓋顯示產業、連結寫入 l）===
+    overrides = {}
+    overrides.update(query_custom_overrides(tw_db, "stock_info"))
+    overrides.update(query_custom_overrides(us_db, "us_stock_info"))
+    override_count = 0
+    for sid, ov in overrides.items():
+        if sid not in stocks:
+            continue
+        parts = [p for p in (ov["i1"], ov["i2"]) if p]
+        if parts:
+            stocks[sid]["i"] = " · ".join(parts)
+        if ov["link"].startswith(("http://", "https://")):
+            stocks[sid]["l"] = ov["link"]
+        override_count += 1
+    if override_count:
+        print(f"✅ 套用自訂覆蓋: {override_count} 檔")
+
     # === 2. 按月份拆分結果 ===
     months_data = defaultdict(list)
     all_months = set()
@@ -192,6 +260,12 @@ def main():
     sorted_months = sorted(all_months, reverse=True)
     all_dates = sorted({r["d"] for r in all_results})
 
+    # 大盤 20 日漲幅（台股加權指數 / 美股 S&P500），供前端「大盤基準列」使用
+    market_returns = {
+        "tw": query_market_returns(tw_db, "market_index", "taiex"),
+        "us": query_market_returns(us_db, "us_market_index", "sp500"),
+    }
+
     index = {
         "generated_at": date.today().isoformat(),
         "total_records": len(all_results),
@@ -200,6 +274,7 @@ def main():
         "last_date": all_dates[-1] if all_dates else "",
         "months": sorted_months,
         "stocks": stocks,
+        "mr": market_returns,
     }
 
     index_path = OUTPUT_DIR / "index.json"
