@@ -151,6 +151,28 @@ def query_market_returns(db_path, table, col):
     return out
 
 
+def query_secondary_industry(db_path, table, col):
+    """讀取第二產業（台股 industry_category2 / 美股 industry），供產業欄顯示兩級
+
+    Returns:
+        { stock_id: 第二產業 }  只含有值的股
+    """
+    if not os.path.exists(db_path):
+        return {}
+    conn = sqlite3.connect(db_path)
+    cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    if col not in cols:
+        conn.close()
+        return {}
+    out = {}
+    for sid, v in conn.execute(f"SELECT stock_id, {col} FROM {table}"):
+        v = (v or "").strip()
+        if v and v != "-":
+            out[sid] = v
+    conn.close()
+    return out
+
+
 def query_custom_overrides(db_path, table):
     """讀取自訂欄位（產業別1/2、連結），供 Page 覆蓋顯示用
 
@@ -196,6 +218,10 @@ def main():
             tw_stock_types[row[0]] = row[1]
         tw_conn.close()
 
+    # 第二產業（台股 industry_category2 / 美股 industry），讓產業欄顯示兩級
+    tw_ind2 = query_secondary_industry(tw_db, "stock_info", "industry_category2")
+    us_ind2 = query_secondary_industry(us_db, "us_stock_info", "industry")
+
     # === 1. 建立股票主檔 ===
     stocks = {}
     stock_months = defaultdict(set)  # stock_id -> set of months
@@ -206,7 +232,11 @@ def main():
         stock_months[sid].add(month)
 
         if sid not in stocks:
-            info = {"n": r["n"], "m": r["m"], "i": r["i"]}
+            # 產業欄顯示兩級：產業別1 · 產業別2（皆有值時）
+            secondary = (tw_ind2 if r["m"] == "tw" else us_ind2).get(sid, "")
+            parts = [p for p in (r["i"], secondary) if p and p != "-"]
+            industry = " · ".join(parts) if parts else "-"
+            info = {"n": r["n"], "m": r["m"], "i": industry}
             # 台股加入 exchange（twse/tpex）給 TradingView 用
             if r["m"] == "tw" and sid in tw_stock_types:
                 info["e"] = tw_stock_types[sid]

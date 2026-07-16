@@ -515,7 +515,7 @@
     .sheet-scroll { overflow-x: auto; }
     .sheet-head, .sheet-row {
       display: grid;
-      grid-template-columns: 48px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px 56px;
+      grid-template-columns: var(--sheet-cols, 48px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px 56px);
       align-items: stretch; min-width: 648px;
     }
     /* 欄位標題列：深藍底、凍結在頂 */
@@ -528,9 +528,16 @@
     .sheet-head > span {
       padding: 12px 10px; display: flex; align-items: center;
       border-right: 1px solid rgba(22, 38, 63, 0.10);
+      position: relative;  /* 供欄寬拖曳把手定位 */
     }
     .sheet-head > span:last-child { border-right: none; }
     .sheet-head .num { justify-content: flex-end; }
+    /* 欄寬拖曳把手：表頭右邊界，拖曳可拉寬/拉窄 */
+    .col-resizer {
+      position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
+      cursor: col-resize; z-index: 7; touch-action: none;
+    }
+    .col-resizer:hover, .col-resizer.resizing { background: rgba(176, 151, 101, 0.5); }
     /* 資料列：斑馬紋 + 格線 + hover 整列 */
     .sheet-row {
       font-size: 13px; border-top: 1px solid var(--border);
@@ -1324,12 +1331,63 @@
         ${rows}
       </div></div>`;
       document.getElementById('content').innerHTML = `<div class="results">${html}</div>`;
+      setupSheetResize(document.querySelector('.sheet'));
       currentVisibleStocks = merged.map(s => ({
         stock_id: s.stock_id,
         market: s.market,
         isNew: s.isNew,
         stock_name: (INDEX.stocks[s.stock_id] && INDEX.stocks[s.stock_id].n) || ''
       }));
+    }
+
+    // 欄寬手動拖曳：拖表頭右邊界拉寬/拉窄（凍結為 px，寫進 --sheet-cols；跨重渲染保留）
+    let sheetColsOverride = null;
+    function setupSheetResize(sheetEl) {
+      if (!sheetEl) return;
+      if (sheetColsOverride) sheetEl.style.setProperty('--sheet-cols', sheetColsOverride);
+      const head = sheetEl.querySelector('.sheet-head');
+      if (!head) return;
+      const cols = [...head.children];
+      cols.forEach((col, i) => {
+        if (i >= cols.length - 1) return;  // 最後一欄不加把手
+        const handle = document.createElement('div');
+        handle.className = 'col-resizer';
+        handle.title = '拖曳調整欄寬';
+        col.appendChild(handle);
+        const startDrag = (clientX) => {
+          const startX = clientX;
+          const widths = cols.map(c => c.offsetWidth);
+          const startW = widths[i];
+          handle.classList.add('resizing');
+          document.body.style.userSelect = 'none';
+          const onMove = (ev) => {
+            const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+            widths[i] = Math.max(40, startW + (cx - startX));
+            sheetColsOverride = widths.map(w => w + 'px').join(' ');
+            sheetEl.style.setProperty('--sheet-cols', sheetColsOverride);
+          };
+          const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            window.removeEventListener('touchmove', onMove);
+            window.removeEventListener('touchend', onUp);
+            handle.classList.remove('resizing');
+            document.body.style.userSelect = '';
+          };
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+          window.addEventListener('touchmove', onMove, { passive: false });
+          window.addEventListener('touchend', onUp);
+        };
+        handle.addEventListener('mousedown', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          startDrag(e.clientX);
+        });
+        handle.addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          startDrag(e.touches[0].clientX);
+        }, { passive: false });
+      });
     }
 
     function renderDateStockRow(s) {
