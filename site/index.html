@@ -516,7 +516,7 @@
     .sheet-head, .sheet-row {
       display: grid;
       grid-template-columns: var(--sheet-cols, 48px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px 56px);
-      align-items: stretch; min-width: 648px;
+      align-items: stretch; min-width: var(--sheet-minw, 648px);
     }
     /* 欄位標題列：深藍底、凍結在頂 */
     .sheet-head {
@@ -1342,9 +1342,15 @@
 
     // 欄寬手動拖曳：拖表頭右邊界拉寬/拉窄（凍結為 px，寫進 --sheet-cols；跨重渲染保留）
     let sheetColsOverride = null;
+    // 依欄位總和設 min-width，讓元素背景（金底/斑馬紋）跟著拉伸、不露白
+    function applySheetCols(sheetEl, colsStr) {
+      sheetEl.style.setProperty('--sheet-cols', colsStr);
+      const sum = colsStr.split(' ').reduce((a, w) => a + (parseFloat(w) || 0), 0);
+      sheetEl.style.setProperty('--sheet-minw', sum + 'px');
+    }
     function setupSheetResize(sheetEl) {
       if (!sheetEl) return;
-      if (sheetColsOverride) sheetEl.style.setProperty('--sheet-cols', sheetColsOverride);
+      if (sheetColsOverride) applySheetCols(sheetEl, sheetColsOverride);
       const head = sheetEl.querySelector('.sheet-head');
       if (!head) return;
       const cols = [...head.children];
@@ -1364,7 +1370,7 @@
             const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
             widths[i] = Math.max(40, startW + (cx - startX));
             sheetColsOverride = widths.map(w => w + 'px').join(' ');
-            sheetEl.style.setProperty('--sheet-cols', sheetColsOverride);
+            applySheetCols(sheetEl, sheetColsOverride);
           };
           const onUp = () => {
             window.removeEventListener('mousemove', onMove);
