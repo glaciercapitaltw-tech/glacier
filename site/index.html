@@ -532,6 +532,10 @@
     }
     .sheet-head > span:last-child { border-right: none; }
     .sheet-head .num { justify-content: flex-end; }
+    /* 可排序標題：點擊排序、hover 提示、選中金色 */
+    .sheet-head > span.sortable { cursor: pointer; user-select: none; transition: background 0.15s ease; }
+    .sheet-head > span.sortable:hover { background: rgba(176, 151, 101, 0.2); }
+    .sheet-head > span.sorted { color: var(--gold-deep); }
     /* 欄寬拖曳把手：表頭右邊界，拖曳可拉寬/拉窄 */
     .col-resizer {
       position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
@@ -979,6 +983,8 @@
     let ALL_DATES = [];        // sorted desc, from all loaded months
     let currentMode = 'date';
     let activeFilters = { market: 'tw', types: new Set(['strong', 'newhigh', 'sanxian']) };  // 預設全選；至少須選一個
+    // 點欄位標題排序；field='newold' 為預設（新股優先，顯示大盤基準列），其他欄位排序時大盤自動移除
+    let sortState = { field: 'newold', dir: 'desc' };
     let loadingMonths = new Set();
     let currentVisibleStocks = [];  // 目前畫面上的股票 [{stock_id, market}, ...]
 
@@ -1314,20 +1320,19 @@
           共 ${merged.length} 檔（新 ${newCount} / 舊 ${merged.length - newCount} / 強勢 ${strongCount} / 新高 ${newHighCount} / 三線開花 ${sanxianCount}${bothCount > 0 ? ` / 同時上榜 ${bothCount}` : ''}）
         </div>
       </div>`;
-      // 大盤基準列：插在新股/舊股交界（新股在上 → 大盤基準 → 舊股在下）
-      const mrMap = (INDEX.mr && INDEX.mr[activeFilters.market]) || {};
-      const marketReturn = mrMap[dateStr] ?? null;
-      const marketLabel = activeFilters.market === 'us' ? 'S&P 500' : '加權指數';
       const rowArr = merged.map(s => renderDateStockRow(s));
-      const splitIdx = merged.findIndex(s => !s.isNew);
-      const insertAt = splitIdx === -1 ? rowArr.length : splitIdx;
-      rowArr.splice(insertAt, 0, renderMarketRow(marketReturn, marketLabel));
+      // 大盤基準列：只在「新舊排序」（預設）時顯示，插在新/舊交界；其他排序時移除
+      if (sortState.field === 'newold') {
+        const mrMap = (INDEX.mr && INDEX.mr[activeFilters.market]) || {};
+        const marketReturn = mrMap[dateStr] ?? null;
+        const marketLabel = activeFilters.market === 'us' ? 'S&P 500' : '加權指數';
+        let at = merged.findIndex((s, k) => k > 0 && s.isNew !== merged[0].isNew);
+        if (at === -1) at = rowArr.length;
+        rowArr.splice(at, 0, renderMarketRow(marketReturn, marketLabel));
+      }
       const rows = rowArr.join('');
       html += `<div class="sheet"><div class="sheet-scroll">
-        <div class="sheet-head">
-          <span>新舊</span><span>股號</span><span>股名</span><span>類型</span><span>產業</span>
-          <span class="num">20日漲幅</span><span class="c-link-head">連結</span>
-        </div>
+        <div class="sheet-head">${renderSortHeader()}</div>
         ${rows}
       </div></div>`;
       document.getElementById('content').innerHTML = `<div class="results">${html}</div>`;
@@ -1338,6 +1343,27 @@
         isNew: s.isNew,
         stock_name: (INDEX.stocks[s.stock_id] && INDEX.stocks[s.stock_id].n) || ''
       }));
+    }
+
+    // 表頭欄位；只開放 新舊/產業/20日漲幅/連結 排序（股號/股名/類型不排）
+    const HEAD_COLS = [
+      { sf: 'newold', label: '新舊', sortable: true },
+      { sf: 'id', label: '股號' },
+      { sf: 'name', label: '股名' },
+      { sf: 'type', label: '類型' },
+      { sf: 'industry', label: '產業', sortable: true },
+      { sf: 'return', label: '20日漲幅', num: true, sortable: true },
+      { sf: 'link', label: '連結', link: true, sortable: true },
+    ];
+    function renderSortHeader() {
+      return HEAD_COLS.map(c => {
+        const base = (c.num ? 'num ' : '') + (c.link ? 'c-link-head ' : '');
+        if (!c.sortable) return `<span class="${base.trim()}">${c.label}</span>`;
+        const active = sortState.field === c.sf;
+        const ar = active ? (sortState.dir === 'desc' ? ' ▼' : ' ▲') : '';
+        const cls = (base + 'sortable' + (active ? ' sorted' : '')).trim();
+        return `<span class="${cls}" data-sf="${c.sf}">${c.label}${ar}</span>`;
+      }).join('');
     }
 
     // 欄寬手動拖曳：拖表頭右邊界拉寬/拉窄（凍結為 px，寫進 --sheet-cols；跨重渲染保留）
@@ -1494,13 +1520,22 @@
       return Object.values(map);
     }
 
-    // 固定排序：新股優先，其次依 20 日漲幅降冪（排序 UI 已移除）
+    // 依 sortState 排序；預設 newold=新股優先。點欄位標題切換
     function sortStocks(arr) {
       const safeNum = v => (v != null && isFinite(v)) ? v : -Infinity;
-      arr.sort((a, b) => {
-        if (a.isNew !== b.isNew) return a.isNew ? -1 : 1;
-        return safeNum(b.return_20d) - safeNum(a.return_20d);
-      });
+      const dir = sortState.dir === 'asc' ? 1 : -1;
+      const byNum = get => (a, b) => (safeNum(get(a)) - safeNum(get(b))) * dir;
+      const byStr = get => (a, b) => String(get(a) || '').localeCompare(String(get(b) || ''), 'zh-Hant') * dir;
+      switch (sortState.field) {
+        case 'industry': arr.sort(byStr(s => s.industry)); break;
+        case 'return': arr.sort(byNum(s => s.return_20d)); break;
+        case 'link': arr.sort(byNum(s => s.link ? 1 : 0)); break;  // 有自訂連結優先
+        default: // newold：新股優先(desc)/舊股優先(asc)，組內固定依 20 日漲幅降冪
+          arr.sort((a, b) => {
+            if (a.isNew !== b.isNew) return (a.isNew ? -1 : 1) * dir;
+            return safeNum(b.return_20d) - safeNum(a.return_20d);
+          });
+      }
     }
 
     const isMobile = () => window.innerWidth <= 600;
@@ -1827,6 +1862,20 @@
     document.addEventListener('click', (e) => {
       const row = e.target.closest('.sheet-row[data-sid]');
       if (row && !e.target.closest('.tag')) goToStockHistory(row.dataset.sid);
+    });
+    // 點欄位標題排序（避開拖曳把手）
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('col-resizer')) return;
+      const h = e.target.closest('.sheet-head .sortable');
+      if (!h) return;
+      const sf = h.dataset.sf;
+      if (sortState.field === sf) {
+        sortState.dir = sortState.dir === 'desc' ? 'asc' : 'desc';
+      } else {
+        sortState.field = sf;
+        sortState.dir = (sf === 'industry') ? 'asc' : 'desc';
+      }
+      triggerCurrentSearch();
     });
 
     // Floating tooltip: attached to <body> so it escapes the sheet's overflow
