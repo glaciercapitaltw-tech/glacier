@@ -515,8 +515,8 @@
     .sheet-scroll { overflow-x: auto; }
     .sheet-head, .sheet-row {
       display: grid;
-      grid-template-columns: var(--sheet-cols, 48px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px 56px);
-      align-items: stretch; min-width: var(--sheet-minw, 648px);
+      grid-template-columns: var(--sheet-cols, 64px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px 56px);
+      align-items: stretch; min-width: var(--sheet-minw, 664px);
     }
     /* 欄位標題列：深藍底、凍結在頂 */
     .sheet-head {
@@ -526,7 +526,7 @@
       position: sticky; top: 0; z-index: 5;
     }
     .sheet-head > span {
-      padding: 12px 10px; display: flex; align-items: center;
+      padding: 12px 8px; display: flex; align-items: center; white-space: nowrap;
       border-right: 1px solid rgba(22, 38, 63, 0.10);
       position: relative;  /* 供欄寬拖曳把手定位 */
     }
@@ -536,6 +536,22 @@
     .sheet-head > span.sortable { cursor: pointer; user-select: none; transition: background 0.15s ease; }
     .sheet-head > span.sortable:hover { background: rgba(176, 151, 101, 0.2); }
     .sheet-head > span.sorted { color: var(--gold-deep); }
+    /* 優先序徽章 ①② + 箭頭 */
+    .sheet-head .sort-pri {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 13px; height: 13px; border-radius: 50%;
+      background: var(--gold-deep); color: #fff; font-size: 9px; font-weight: 700;
+      margin: 0 1px; vertical-align: middle; flex-shrink: 0;
+    }
+    .sheet-head .sort-ar { font-size: 10px; }
+    /* 清除排序 chip */
+    .clear-sort-btn {
+      margin-left: 10px; padding: 3px 11px; border-radius: 12px;
+      border: 1px solid var(--border-hover); background: var(--surface);
+      color: var(--gold-deep); font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s ease; vertical-align: middle;
+    }
+    .clear-sort-btn:hover { border-color: var(--gold); background: rgba(176, 151, 101, 0.1); }
     /* 欄寬拖曳把手：表頭右邊界，拖曳可拉寬/拉窄 */
     .col-resizer {
       position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
@@ -983,8 +999,12 @@
     let ALL_DATES = [];        // sorted desc, from all loaded months
     let currentMode = 'date';
     let activeFilters = { market: 'tw', types: new Set(['strong', 'newhigh', 'sanxian']) };  // 預設全選；至少須選一個
-    // 點欄位標題排序；field='newold' 為預設（新股優先，顯示大盤基準列），其他欄位排序時大盤自動移除
-    let sortState = { field: 'newold', dir: 'desc' };
+    // 雙排序鏈：[{field,dir}, ...] 最多 2 層。預設 newold desc（新股優先 + 大盤列）
+    // 點第1欄=主排序①、點第2欄=次排序②；再點同欄 升↔降↔移除；大盤只在 主排序①=newold 時顯示
+    let sortChain = [{ field: 'newold', dir: 'desc' }];
+    const sortDefaultDir = sf => (sf === 'industry' ? 'asc' : 'desc');
+    const isDefaultSort = () => sortChain.length === 1 && sortChain[0].field === 'newold' && sortChain[0].dir === 'desc';
+    function resetSort() { sortChain = [{ field: 'newold', dir: 'desc' }]; triggerCurrentSearch(); }
     let loadingMonths = new Set();
     let currentVisibleStocks = [];  // 目前畫面上的股票 [{stock_id, market}, ...]
 
@@ -1314,15 +1334,16 @@
       const bothCount = merged.filter(s => (s.is_strong || s.is_new_high) && s.is_sanxian).length;
       const newCount = merged.filter(s => s.isNew).length;
 
+      const clearSortBtn = isDefaultSort() ? '' : `<button class="clear-sort-btn" onclick="resetSort()">清除排序 &#10005;</button>`;
       let html = `<div class="section-header">
-        <div class="section-title"><span>${dateStr}</span></div>
+        <div class="section-title"><span>${dateStr}</span>${clearSortBtn}</div>
         <div class="section-count">
           共 ${merged.length} 檔（新 ${newCount} / 舊 ${merged.length - newCount} / 強勢 ${strongCount} / 新高 ${newHighCount} / 三線開花 ${sanxianCount}${bothCount > 0 ? ` / 同時上榜 ${bothCount}` : ''}）
         </div>
       </div>`;
       const rowArr = merged.map(s => renderDateStockRow(s));
-      // 大盤基準列：只在「新舊排序」（預設）時顯示，插在新/舊交界；其他排序時移除
-      if (sortState.field === 'newold') {
+      // 大盤基準列：只在「新舊=主排序①」時顯示，插在新/舊交界；其他排序時移除
+      if (sortChain[0].field === 'newold') {
         const mrMap = (INDEX.mr && INDEX.mr[activeFilters.market]) || {};
         const marketReturn = mrMap[dateStr] ?? null;
         const marketLabel = activeFilters.market === 'us' ? 'S&P 500' : '加權指數';
@@ -1359,10 +1380,15 @@
       return HEAD_COLS.map(c => {
         const base = (c.num ? 'num ' : '') + (c.link ? 'c-link-head ' : '');
         if (!c.sortable) return `<span class="${base.trim()}">${c.label}</span>`;
-        const active = sortState.field === c.sf;
-        const ar = active ? (sortState.dir === 'desc' ? ' ▼' : ' ▲') : '';
-        const cls = (base + 'sortable' + (active ? ' sorted' : '')).trim();
-        return `<span class="${cls}" data-sf="${c.sf}">${c.label}${ar}</span>`;
+        const idx = sortChain.findIndex(s => s.field === c.sf);
+        let badge = '';
+        if (idx >= 0) {
+          const ar = sortChain[idx].dir === 'desc' ? '▼' : '▲';
+          const pri = sortChain.length > 1 ? `<span class="sort-pri">${idx + 1}</span>` : '';
+          badge = ` ${pri}<span class="sort-ar">${ar}</span>`;
+        }
+        const cls = (base + 'sortable' + (idx >= 0 ? ' sorted' : '')).trim();
+        return `<span class="${cls}" data-sf="${c.sf}">${c.label}${badge}</span>`;
       }).join('');
     }
 
@@ -1520,22 +1546,26 @@
       return Object.values(map);
     }
 
-    // 依 sortState 排序；預設 newold=新股優先。點欄位標題切換
+    // 依 sortChain 多層排序；最終固定以 20 日漲幅降冪 tiebreak
     function sortStocks(arr) {
       const safeNum = v => (v != null && isFinite(v)) ? v : -Infinity;
-      const dir = sortState.dir === 'asc' ? 1 : -1;
-      const byNum = get => (a, b) => (safeNum(get(a)) - safeNum(get(b))) * dir;
-      const byStr = get => (a, b) => String(get(a) || '').localeCompare(String(get(b) || ''), 'zh-Hant') * dir;
-      switch (sortState.field) {
-        case 'industry': arr.sort(byStr(s => s.industry)); break;
-        case 'return': arr.sort(byNum(s => s.return_20d)); break;
-        case 'link': arr.sort(byNum(s => s.link ? 1 : 0)); break;  // 有自訂連結優先
-        default: // newold：新股優先(desc)/舊股優先(asc)，組內固定依 20 日漲幅降冪
-          arr.sort((a, b) => {
-            if (a.isNew !== b.isNew) return (a.isNew ? -1 : 1) * dir;
-            return safeNum(b.return_20d) - safeNum(a.return_20d);
-          });
-      }
+      const cmpField = (a, b, sf, dir) => {
+        const d = dir === 'asc' ? 1 : -1;
+        switch (sf) {
+          case 'newold': return (Number(a.isNew) - Number(b.isNew)) * d;  // desc=新股在前
+          case 'industry': return String(a.industry || '').localeCompare(String(b.industry || ''), 'zh-Hant') * d;
+          case 'return': return (safeNum(a.return_20d) - safeNum(b.return_20d)) * d;
+          case 'link': return ((a.link ? 1 : 0) - (b.link ? 1 : 0)) * d;
+          default: return 0;
+        }
+      };
+      arr.sort((a, b) => {
+        for (const { field, dir } of sortChain) {
+          const c = cmpField(a, b, field, dir);
+          if (c !== 0) return c;
+        }
+        return safeNum(b.return_20d) - safeNum(a.return_20d);  // 最終 tiebreak
+      });
     }
 
     const isMobile = () => window.innerWidth <= 600;
@@ -1863,18 +1893,24 @@
       const row = e.target.closest('.sheet-row[data-sid]');
       if (row && !e.target.closest('.tag')) goToStockHistory(row.dataset.sid);
     });
-    // 點欄位標題排序（避開拖曳把手）
+    // 點欄位標題排序：連續點擊疊加（最多2層）、再點同欄 升↔降↔移除（避開拖曳把手）
     document.addEventListener('click', (e) => {
       if (e.target.classList.contains('col-resizer')) return;
       const h = e.target.closest('.sheet-head .sortable');
       if (!h) return;
       const sf = h.dataset.sf;
-      if (sortState.field === sf) {
-        sortState.dir = sortState.dir === 'desc' ? 'asc' : 'desc';
+      const idx = sortChain.findIndex(s => s.field === sf);
+      if (idx >= 0) {
+        const cur = sortChain[idx];
+        const def = sortDefaultDir(sf);
+        if (cur.dir === def) cur.dir = (def === 'asc' ? 'desc' : 'asc');  // 第2次：反向
+        else sortChain.splice(idx, 1);                                    // 第3次：移除
       } else {
-        sortState.field = sf;
-        sortState.dir = (sf === 'industry') ? 'asc' : 'desc';
+        const entry = { field: sf, dir: sortDefaultDir(sf) };
+        if (sortChain.length < 2) sortChain.push(entry);                  // 加為①或②
+        else sortChain[1] = entry;                                        // 已滿→取代次排序
       }
+      if (sortChain.length === 0) sortChain = [{ field: 'newold', dir: 'desc' }];  // 空→回預設
       triggerCurrentSearch();
     });
 
