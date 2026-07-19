@@ -647,7 +647,7 @@
 
     .new-old-label {
       font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.3px; cursor: help;
     }
 
     .new-old-label.is-new { background: var(--green-dim); color: var(--green); }
@@ -1324,6 +1324,7 @@
       const recentByType = getRecentStockIdsByType(dateStr);
       for (const s of merged) {
         s.isNew = isNewStock(s, recentByType);
+        s.newReasons = newStockReasons(s, recentByType);
         s._date = dateStr;
       }
       sortStocks(merged);
@@ -1451,7 +1452,10 @@
     function renderDateStockRow(s) {
       const tags = buildTags(s, s._date, s.stock_id);
       const newOldCls = s.isNew ? 'is-new' : 'is-old';
-      const newOldLabel = s.isNew ? '<span class="new-old-label is-new">新</span>' : '<span class="new-old-label is-old">舊</span>';
+      const nt = escapeHtml(newOldTitle(s));
+      const newOldLabel = s.isNew
+        ? `<span class="new-old-label is-new" title="${nt}">新</span>`
+        : `<span class="new-old-label is-old" title="${nt}">舊</span>`;
 
       // 數字欄：有值顯示帶號百分比並著色，無值顯示「-」
       const numCell = (v) => {
@@ -1522,6 +1526,23 @@
       if (stock.is_sanxian) types.push('sanxian');
       if (!types.length) return false;
       return types.some(t => !recentByType[t].has(stock.stock_id));
+    }
+    // 這檔在「哪些類型」是新股（近20交易日首見）；'vcp'=強勢/新高、'sanxian'=三線開花
+    function newStockReasons(stock, recentByType) {
+      const r = [];
+      if ((stock.is_strong || stock.is_new_high) && !recentByType.vcp.has(stock.stock_id)) r.push('vcp');
+      if (stock.is_sanxian && !recentByType.sanxian.has(stock.stock_id)) r.push('sanxian');
+      return r;
+    }
+    // 新舊標籤的 hover 說明文字
+    function newOldTitle(s) {
+      if (s.isNew) {
+        const labels = [];
+        if ((s.newReasons || []).includes('vcp')) labels.push('強勢/新高');
+        if ((s.newReasons || []).includes('sanxian')) labels.push('三線開花');
+        return `${labels.join('、')} 的新股（近 20 交易日首次上榜）`;
+      }
+      return '近 20 交易日曾上榜（舊股）';
     }
 
     function getFilteredStocksForDate(dateStr) {
@@ -1629,9 +1650,13 @@
       const tags = buildTags(a, a.date, stockId);
       // 同類型比較（與 Sheet 一致）：VCP 比 VCP、三線比三線
       const recentByType = getRecentStockIdsByType(a.date);
-      const isNew = isNewStock({ ...a, stock_id: stockId }, recentByType);
+      const stockObj = { ...a, stock_id: stockId };
+      const isNew = isNewStock(stockObj, recentByType);
       const newOldCls = isNew ? 'is-new' : 'is-old';
-      const newOldLabel = isNew ? '<span class="new-old-label is-new">新</span>' : '<span class="new-old-label is-old">舊</span>';
+      const nt = escapeHtml(newOldTitle({ isNew, newReasons: newStockReasons(stockObj, recentByType) }));
+      const newOldLabel = isNew
+        ? `<span class="new-old-label is-new" title="${nt}">新</span>`
+        : `<span class="new-old-label is-old" title="${nt}">舊</span>`;
       let details = '';
       if (a.return_20d != null) {
         const cls = a.return_20d >= 0 ? 'positive' : 'negative';
