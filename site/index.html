@@ -945,7 +945,7 @@
       <span class="filter-label">類型</span>
       <button class="filter-btn active" data-filter="strong" data-group="type">強勢</button>
       <button class="filter-btn active" data-filter="newhigh" data-group="type">新高</button>
-      <button class="filter-btn active" data-filter="sanxian" data-group="type">三線開花</button>
+      <button class="filter-btn" data-filter="sanxian" data-group="type">三線開花</button>
     </div>
 
     <!-- 匯出工具列（date mode only）；清單固定依「新股優先 → 20 日漲幅」排序 -->
@@ -998,7 +998,7 @@
     let STOCK_INDEX = {};      // { stock_id -> [ entries with date ] } reverse index for search
     let ALL_DATES = [];        // sorted desc, from all loaded months
     let currentMode = 'date';
-    let activeFilters = { market: 'tw', types: new Set(['strong', 'newhigh', 'sanxian']) };  // 預設全選；至少須選一個
+    let activeFilters = { market: 'tw', types: new Set(['strong', 'newhigh']) };  // 預設勾強勢＋新高；三線開花不預設；至少須選一個
     // 雙排序鏈：[{field,dir}, ...] 最多 2 層。預設 newold desc（新股優先 + 大盤列）
     // 點第1欄=主排序①、點第2欄=次排序②；再點同欄 升↔降↔移除；大盤只在 主排序①=newold 時顯示
     let sortChain = [{ field: 'newold', dir: 'desc' }];
@@ -1626,12 +1626,12 @@
           <span class="t-label">20日漲幅</span> <span class="t-val">${fmtPct(ind.return_20d)}</span> &gt; 大盤 <span class="t-val">${fmtPct(ind.market_return)}</span>
         </span>`;
       } else if (type === 'vh') {
-        const high52w = ind.high_260d || ind.high_252d;
-        const gap = (ind.high_5d && high52w) ? Math.abs(ind.high_5d / high52w - 1) : null;
+        const priorHigh = ind.high_250d_prior;
+        const breakout = (ind.close != null && priorHigh) ? (ind.close / priorHigh - 1) : null;
         return `<span class="tooltip">
-          <span class="t-label">5日高點</span> <span class="t-val">${fmtVal(ind.high_5d)}</span><br>
-          <span class="t-label">52週高點</span> <span class="t-val">${fmtVal(high52w)}</span><br>
-          <span class="t-label">差距</span> <span class="t-val">${gap != null ? (gap*100).toFixed(2)+'%' : '-'}</span><br>
+          <span class="t-label">收盤</span> <span class="t-val">${fmtVal(ind.close)}</span><br>
+          <span class="t-label">前250日高</span> <span class="t-val">${fmtVal(priorHigh)}</span><br>
+          <span class="t-label">突破幅度</span> <span class="t-val">${breakout != null ? '+' + (breakout*100).toFixed(2)+'%' : '-'}</span><br>
           <span class="t-label">20日漲幅</span> <span class="t-val">${fmtPct(ind.return_20d)}</span> &gt; 大盤 <span class="t-val">${fmtPct(ind.market_return)}</span>
         </span>`;
       } else {

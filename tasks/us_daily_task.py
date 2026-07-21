@@ -646,11 +646,8 @@ class USDailyTask:
         # 強勢清單
         df["is_strong"] = df["cond1"] & df["cond2"] & df["cond3"] & df["cond4"] & df["cond5"]
 
-        # 新高清單
-        high_5d = df["high_5d"].fillna(0)
-        high_260d = df["high_260d"].fillna(1).replace(0, 1)
-        df["gap_to_52w_high"] = abs(high_5d / high_260d - 1)
-        df["is_new_high"] = (df["gap_to_52w_high"] <= self.vcp_filter.new_high_tolerance) & df["cond5"]
+        # 新高清單：收盤價突破前 250 交易日（不含當天）最高價
+        df["is_new_high"] = (close > df["high_250d_prior"]) & df["cond5"]
 
         # VCP = 強勢 OR 新高
         df["is_vcp"] = df["is_strong"] | df["is_new_high"]

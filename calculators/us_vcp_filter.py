@@ -23,7 +23,7 @@ class USVCPFilter:
        - 股票 20 日報酬 > 大盤 20 日報酬
 
     2. 新高清單（2 條件 AND）:
-       - 5 日高點接近 52 週高點（誤差 ≤ 1%，US_VCP_PARAMS["new_high_tolerance"]=0.01）
+       - 收盤價 > 前 250 交易日（不含當天）最高價（突破 250 日新高）
        - 股票 20 日報酬 > 大盤 20 日報酬
 
     3. 最終結果 = 強勢清單 UNION 新高清單
@@ -174,19 +174,11 @@ class USVCPFilter:
         篩選新高清單
 
         條件:
-        1. 5 日高點接近 52 週高點（誤差 ≤ 1%，US_VCP_PARAMS["new_high_tolerance"]=0.01）
+        1. 收盤價 > 前 250 交易日（不含當天）最高價 → 突破 250 日新高
         """
-        # 計算 5 日高點與 52 週高點的差距（處理 NaN 和除以零）
-        high_5d = df["high_5d"].fillna(0)
-        high_52w = df["high_260d"].fillna(1)  # 避免除以零
-
-        # 安全除法
-        high_52w_safe = high_52w.replace(0, 1)
-        gap_ratio = abs(high_5d / high_52w_safe - 1)
-
-        # 差距在容差範圍內，且數據有效
-        cond = (gap_ratio <= self.new_high_tolerance) & (high_52w > 0)
-
+        close = df["close_price"].fillna(0)
+        prior_high = df["high_250d_prior"]  # NaN（資料不足/首日）比較為 False，不誤判
+        cond = close > prior_high
         return cond
 
 

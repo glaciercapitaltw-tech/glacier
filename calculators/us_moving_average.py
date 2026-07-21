@@ -140,6 +140,20 @@ class USMovingAverageCalculator:
         return df
 
     @staticmethod
+    def calculate_prior_high(
+        df: pd.DataFrame,
+        period: int,
+        high_column: str = "high_price"
+    ) -> pd.DataFrame:
+        """計算近 period 交易日「不含當天」的最高價（供突破新高判斷）"""
+        df = df.copy().sort_values(["stock_id", "date"])
+        col = f"high_{period}d_prior"
+        df[col] = df.groupby("stock_id")[high_column].transform(
+            lambda x: x.rolling(window=period, min_periods=1).max().shift(1)
+        )
+        return df
+
+    @staticmethod
     def calculate_returns(
         df: pd.DataFrame,
         periods: list[int],
@@ -295,8 +309,11 @@ class USMovingAverageCalculator:
         # 計算 20 日報酬率
         df = cls.calculate_returns(df, [20])
 
-        # 計算 5 日高點和 52 週高點
+        # 計算 5 日高點和 52 週高點（供指標 tooltip 顯示）
         df = cls.calculate_high_low(df, [5, 260])
+
+        # 計算前 250 交易日（不含當天）最高價（新高突破判斷用）
+        df = cls.calculate_prior_high(df, 250)
 
         logger.info("美股 VCP 計算資料準備完成")
         return df
