@@ -22,7 +22,7 @@ class VCPFilter:
        - 股票 20 日報酬 > 大盤 20 日報酬
 
     2. 新高清單（2 條件 AND）:
-       - 收盤價 > 前 250 交易日（不含當天）最高價（突破 250 日新高）
+       - 近 5 日最高價 == 近 250 交易日最高價（250 日最高點落在最近 5 日內）
        - 股票 20 日報酬 > 大盤 20 日報酬
 
     3. 最終結果 = 強勢清單 UNION 新高清單
@@ -173,11 +173,10 @@ class VCPFilter:
         篩選新高清單
 
         條件:
-        1. 收盤價 > 前 250 交易日（不含當天）最高價 → 突破 250 日新高
+        1. 近 5 日最高價 == 近 250 交易日最高價 → 250 日最高點落在最近 5 日內（創 250 日新高）
         """
-        close = df["close_price"].fillna(0)
-        prior_high = df["high_250d_prior"]  # NaN（資料不足/首日）比較結果為 False，不會誤判為新高
-        cond = close > prior_high
+        # high_5d <= high_250d 恆成立，故 >= 等同 ==；NaN（資料不足）比較為 False，不誤判
+        cond = df["high_5d"] >= df["high_250d"]
         return cond
 
 

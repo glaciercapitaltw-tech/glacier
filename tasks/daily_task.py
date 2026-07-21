@@ -489,8 +489,8 @@ class DailyTask:
         # 強勢清單
         df["is_strong"] = df["cond1"] & df["cond2"] & df["cond3"] & df["cond4"] & df["cond5"]
 
-        # 新高清單：收盤價突破前 250 交易日（不含當天）最高價
-        df["is_new_high"] = (close > df["high_250d_prior"]) & df["cond5"]
+        # 新高清單：近 5 日最高價 == 近 250 交易日最高價（250 日高點落在最近 5 日內）
+        df["is_new_high"] = (df["high_5d"] >= df["high_250d"]) & df["cond5"]
 
         # VCP = 強勢 OR 新高
         df["is_vcp"] = df["is_strong"] | df["is_new_high"]

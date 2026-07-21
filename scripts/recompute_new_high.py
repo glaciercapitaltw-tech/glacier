@@ -2,7 +2,7 @@
 全部重算篩選結果（套用新的新高邏輯：收盤價 > 前 250 交易日「不含當天」最高價）
 
 針對 filter_result（或 us_filter_result）中「已存在的所有交易日」重新執行 VCP／三線開花
-篩選，並重建 indicator_json（tooltip 資料，含 high_250d_prior）。
+篩選，並重建 indicator_json（tooltip 資料，含 high_5d / high_250d）。
 
 效能：一次載入全歷史股價，只 prepare（移動平均、rolling 高點）一次，之後每個日期直接
 切片套用篩選條件，避免對每個交易日重複載入與重算相同 rolling 指標。

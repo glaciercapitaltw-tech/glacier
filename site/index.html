@@ -1626,12 +1626,12 @@
           <span class="t-label">20日漲幅</span> <span class="t-val">${fmtPct(ind.return_20d)}</span> &gt; 大盤 <span class="t-val">${fmtPct(ind.market_return)}</span>
         </span>`;
       } else if (type === 'vh') {
-        const priorHigh = ind.high_250d_prior;
-        const breakout = (ind.close != null && priorHigh) ? (ind.close / priorHigh - 1) : null;
+        const h5 = ind.high_5d, h250 = ind.high_250d;
+        const isHigh = (h5 != null && h250 != null) ? (h5 >= h250) : null;
         return `<span class="tooltip">
-          <span class="t-label">收盤</span> <span class="t-val">${fmtVal(ind.close)}</span><br>
-          <span class="t-label">前250日高</span> <span class="t-val">${fmtVal(priorHigh)}</span><br>
-          <span class="t-label">突破幅度</span> <span class="t-val">${breakout != null ? '+' + (breakout*100).toFixed(2)+'%' : '-'}</span><br>
+          <span class="t-label">近5日高</span> <span class="t-val">${fmtVal(h5)}</span><br>
+          <span class="t-label">近250日高</span> <span class="t-val">${fmtVal(h250)}</span><br>
+          <span class="t-label">創250日新高</span> <span class="t-val">${isHigh == null ? '-' : (isHigh ? '是 ✓' : '否')}</span><br>
           <span class="t-label">20日漲幅</span> <span class="t-val">${fmtPct(ind.return_20d)}</span> &gt; 大盤 <span class="t-val">${fmtPct(ind.market_return)}</span>
         </span>`;
       } else {

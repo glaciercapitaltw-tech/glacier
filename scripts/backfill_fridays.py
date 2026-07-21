@@ -92,7 +92,7 @@ def _extract_vcp_indicators(row, market_return: float) -> str:
         "market_return": safe_round(market_return, 4),
         "high_5d": safe_round(row.get("high_5d")),
         "high_260d": safe_round(row.get("high_260d")),
-        "high_250d_prior": safe_round(row.get("high_250d_prior")),
+        "high_250d": safe_round(row.get("high_250d")),
     }
     return json.dumps(indicators, ensure_ascii=False)
 
@@ -185,8 +185,8 @@ def run_filters_for_date(
         sane_return = (ret > -0.9) & (ret < 5.0)
         beat_market = (ret > market_return) & sane_return
 
-        # 新高：收盤價突破前 250 交易日（不含當天）最高價
-        new_high_mask = close > vcp_today["high_250d_prior"]
+        # 新高：近 5 日最高價 == 近 250 交易日最高價（250 日高點落在最近 5 日內）
+        new_high_mask = vcp_today["high_5d"] >= vcp_today["high_250d"]
 
         vcp_today = vcp_today.copy()
         vcp_today.loc[:, "is_strong"] = strong_mask & beat_market

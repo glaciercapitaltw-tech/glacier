@@ -309,11 +309,9 @@ class USMovingAverageCalculator:
         # 計算 20 日報酬率
         df = cls.calculate_returns(df, [20])
 
-        # 計算 5 日高點和 52 週高點（供指標 tooltip 顯示）
-        df = cls.calculate_high_low(df, [5, 260])
-
-        # 計算前 250 交易日（不含當天）最高價（新高突破判斷用）
-        df = cls.calculate_prior_high(df, 250)
+        # 計算 5 日 / 250 日 / 52 週高低點
+        # high_5d 與 high_250d 供新高判斷（近5日高==近250日高）；high_260d 供舊驗證欄位相容
+        df = cls.calculate_high_low(df, [5, 250, 260])
 
         logger.info("美股 VCP 計算資料準備完成")
         return df
