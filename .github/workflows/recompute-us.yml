@@ -55,9 +55,9 @@ jobs:
           mx = c.execute("SELECT MAX(filter_date) FROM us_filter_result").fetchone()[0]
           tot = c.execute("SELECT COUNT(*) FROM us_filter_result WHERE filter_type='vcp'").fetchone()[0]
           nh = c.execute("SELECT COUNT(*) FROM us_filter_result WHERE filter_type='vcp' AND is_new_high_list=1").fetchone()[0]
-          ij = c.execute("SELECT COUNT(*) FROM us_filter_result WHERE filter_type='vcp' AND indicator_json LIKE '%high_250d_prior%'").fetchone()[0]
-          print(f"日期數={d}, 最新={mx}, VCP={tot}, 新高={nh}, high_250d_prior={ij}/{tot}")
-          assert ij == tot and ij > 0, "high_250d_prior 未覆蓋全部 VCP 列，重算異常"
+          ij = c.execute("SELECT COUNT(*) FROM us_filter_result WHERE filter_type='vcp' AND indicator_json LIKE '%high_250d%'").fetchone()[0]
+          print(f"日期數={d}, 最新={mx}, VCP={tot}, 新高={nh}, high_250d={ij}/{tot}")
+          assert ij == tot and ij > 0, "high_250d 未覆蓋全部 VCP 列，重算異常"
           print("✅ 驗證通過")
           PY
 
