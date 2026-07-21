@@ -424,56 +424,10 @@
 
     .date-text { font-weight: 600; min-width: 100px; font-variant-numeric: tabular-nums; color: var(--text-mid); }
 
-    /* Tags */
+    /* Tags（純視覺標籤，無互動） */
     .tag {
       font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600;
-      position: relative; cursor: pointer; white-space: nowrap;
-      transition: all 0.2s ease; letter-spacing: 0.2px;
-    }
-
-    .tag:hover { transform: translateY(-1px); }
-
-    .tooltip {
-      display: none; position: absolute; bottom: calc(100% + 10px); left: 50%;
-      transform: translateX(-50%);
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12px; font-weight: 400;
-      color: var(--text); white-space: nowrap; z-index: 100;
-      box-shadow: 0 10px 32px rgba(12, 36, 67, 0.20), 0 0 0 1px rgba(176, 151, 101, 0.12);
-      line-height: 1.8;
-    }
-
-    .tooltip::after {
-      content: ''; position: absolute; top: 100%; left: 50%;
-      transform: translateX(-50%); border: 6px solid transparent;
-      border-top-color: #ffffff;
-    }
-
-    /* Desktop hover + click toggle */
-    .tag:hover .tooltip { display: block; }
-    .tag.tooltip-open .tooltip { display: block; }
-
-    /* Floating variant: attached to <body> with position:fixed so it escapes
-       the sheet's overflow clipping (.sheet-cell overflow:hidden / .sheet-scroll overflow-x). */
-    .tooltip.floating {
-      display: block; position: fixed; bottom: auto; left: 0; top: 0;
-      transform: translate(-50%, -100%);
-    }
-
-    .tooltip .t-label { color: var(--text-dim); }
-    .tooltip .t-val { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
-    .tooltip .t-pass { color: var(--green); }
-    .tooltip .t-fail { color: var(--red); }
-
-    /* Tooltip mobile */
-    @media (max-width: 600px) {
-      .tag .tooltip {
-        left: 0; transform: none; max-width: 280px; white-space: normal;
-      }
-      .tag .tooltip::after { left: 20px; transform: none; }
-      /* Floating variant keeps its JS-driven transform; just allow wrapping */
-      .tooltip.floating { max-width: 78vw; white-space: normal; }
+      white-space: nowrap; letter-spacing: 0.2px;
     }
 
     .tag.vcp { background: rgba(127, 180, 207, 0.12); color: var(--tag-vcp); border: 1px solid rgba(127, 180, 207, 0.25); }
@@ -737,9 +691,6 @@
 
       .tag { white-space: nowrap; font-size: 10px; padding: 2px 6px; }
       .new-old-label { font-size: 10px; padding: 1px 6px; }
-
-      .tag .tooltip { left: 0; transform: none; max-width: 280px; white-space: normal; }
-      .tag .tooltip::after { left: 20px; transform: none; }
     }
     /* === 匯出教學 Modal === */
     .modal-overlay {
@@ -1209,7 +1160,7 @@
           ? `近期 <strong>${merged.length}</strong> 天（共 ${stock.totalMonths} 月）`
           : `出現 <strong>${merged.length}</strong> 天`;
 
-        return `<div class="stock-card" onclick="if(!event.target.closest('.tag') && !event.target.closest('.load-more-btn'))this.classList.toggle('open')">
+        return `<div class="stock-card" onclick="if(!event.target.closest('.load-more-btn'))this.classList.toggle('open')">
           <div class="stock-header">
             <div class="stock-info">
               <span class="stock-id">${escapeHtml(stock.stock_id)}</span>
@@ -1450,7 +1401,7 @@
     }
 
     function renderDateStockRow(s) {
-      const tags = buildTags(s, s._date, s.stock_id);
+      const tags = buildTags(s);
       const newOldCls = s.isNew ? 'is-new' : 'is-old';
       const nt = escapeHtml(newOldTitle(s));
       const newOldLabel = s.isNew
@@ -1590,64 +1541,18 @@
     }
 
     const isMobile = () => window.innerWidth <= 600;
-    let IND_CACHE = {}; // { "2026-03": { "2026-03-20": { "2330": { "v": {...} } } } }
 
-    async function loadIndicators(month) {
-      if (IND_CACHE[month]) return IND_CACHE[month];
-      try {
-        const data = await fetchJSON(`data/indicators/${month}.json`);
-        IND_CACHE[month] = data;
-        return data;
-      } catch { return null; }
-    }
-
-    function buildTags(item, dateStr, stockId) {
+    function buildTags(item) {
       let tags = '';
       const m = isMobile();
-      const dataAttr = dateStr && stockId ? ` data-date="${dateStr}" data-sid="${stockId}"` : '';
-      if (item.is_strong) tags += `<span class="tag strong"${dataAttr} data-tt="vs">${m ? '強' : '強勢'}</span> `;
-      if (item.is_new_high) tags += `<span class="tag newhigh"${dataAttr} data-tt="vh">${m ? '新高' : '新高'}</span> `;
-      if (item.is_sanxian) tags += `<span class="tag sanxian"${dataAttr} data-tt="sx">${m ? '三花' : '三線開花'}</span> `;
+      if (item.is_strong) tags += `<span class="tag strong">${m ? '強' : '強勢'}</span> `;
+      if (item.is_new_high) tags += `<span class="tag newhigh">新高</span> `;
+      if (item.is_sanxian) tags += `<span class="tag sanxian">${m ? '三花' : '三線開花'}</span> `;
       return tags;
     }
 
-    function fmtVal(v) { return v != null ? v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '-'; }
-    function fmtPct(v) { return v != null ? (v * 100).toFixed(2) + '%' : '-'; }
-
-    function buildTooltipHtml(type, ind) {
-      if (!ind) return '<span class="tooltip"><span class="t-label">無指標資料</span></span>';
-      if (type === 'vs') {
-        return `<span class="tooltip">
-          <span class="t-label">收盤</span> <span class="t-val">${fmtVal(ind.close)}</span><br>
-          <span class="t-label">MA50</span> <span class="t-val">${fmtVal(ind.ma50)}</span> &gt;
-          <span class="t-label">MA150</span> <span class="t-val">${fmtVal(ind.ma150)}</span> &gt;
-          <span class="t-label">MA200</span> <span class="t-val">${fmtVal(ind.ma200)}</span><br>
-          <span class="t-label">MA200趨勢</span> <span class="t-val">${ind.ma200_slope != null ? (ind.ma200_slope > 0 ? '↑' : '↓') : '-'}</span> (${fmtVal(ind.ma200_slope)})<br>
-          <span class="t-label">20日漲幅</span> <span class="t-val">${fmtPct(ind.return_20d)}</span> &gt; 大盤 <span class="t-val">${fmtPct(ind.market_return)}</span>
-        </span>`;
-      } else if (type === 'vh') {
-        const h5 = ind.high_5d, h250 = ind.high_250d;
-        const isHigh = (h5 != null && h250 != null) ? (h5 >= h250) : null;
-        return `<span class="tooltip">
-          <span class="t-label">近5日高</span> <span class="t-val">${fmtVal(h5)}</span><br>
-          <span class="t-label">近250日高</span> <span class="t-val">${fmtVal(h250)}</span><br>
-          <span class="t-label">創250日新高</span> <span class="t-val">${isHigh == null ? '-' : (isHigh ? '是 ✓' : '否')}</span><br>
-          <span class="t-label">20日漲幅</span> <span class="t-val">${fmtPct(ind.return_20d)}</span> &gt; 大盤 <span class="t-val">${fmtPct(ind.market_return)}</span>
-        </span>`;
-      } else {
-        return `<span class="tooltip">
-          <span class="t-label">收盤</span> <span class="t-val">${fmtVal(ind.close)}</span><br>
-          <span class="t-label">MA8</span> <span class="t-val">${fmtVal(ind.ma8)}</span> &gt;
-          <span class="t-label">MA21</span> <span class="t-val">${fmtVal(ind.ma21)}</span> &gt;
-          <span class="t-label">MA55</span> <span class="t-val">${fmtVal(ind.ma55)}</span><br>
-          <span class="t-label">55日高點</span> <span class="t-val">${fmtVal(ind.high_55d)}</span>
-          <span class="t-label">次高價</span> <span class="t-val">${fmtVal(ind.second_high)}</span>
-        </span>`;
-      }
-    }
-
     function renderAppearanceRow(a, stockId) {
-      const tags = buildTags(a, a.date, stockId);
+      const tags = buildTags(a);
       // 同類型比較（與 Sheet 一致）：VCP 比 VCP、三線比三線
       const recentByType = getRecentStockIdsByType(a.date);
       const stockObj = { ...a, stock_id: stockId };
@@ -1916,7 +1821,7 @@
     }
     document.addEventListener('click', (e) => {
       const row = e.target.closest('.sheet-row[data-sid]');
-      if (row && !e.target.closest('.tag')) goToStockHistory(row.dataset.sid);
+      if (row) goToStockHistory(row.dataset.sid);
     });
     // 點欄位標題排序：連續點擊疊加（最多2層）、再點同欄 升↔降↔移除（避開拖曳把手）
     document.addEventListener('click', (e) => {
@@ -1938,71 +1843,6 @@
       if (sortChain.length === 0) sortChain = [{ field: 'newold', dir: 'desc' }];  // 空→回預設
       triggerCurrentSearch();
     });
-
-    // Floating tooltip: attached to <body> so it escapes the sheet's overflow
-    // clipping (.sheet-cell overflow:hidden / .sheet-scroll overflow-x:auto).
-    let floatingTip = null;
-    function closeFloatingTip() {
-      if (floatingTip) { floatingTip.remove(); floatingTip = null; }
-      document.querySelectorAll('.tag.tooltip-open').forEach(t => t.classList.remove('tooltip-open'));
-    }
-    function makeTip(html) {
-      const tmp = document.createElement('div');
-      tmp.innerHTML = html.trim();
-      const el = tmp.firstElementChild;
-      el.classList.add('floating');
-      return el;
-    }
-    function positionTip(tag, tip) {
-      const r = tag.getBoundingClientRect();
-      const vw = document.documentElement.clientWidth;
-      const half = tip.offsetWidth / 2;
-      const margin = 8;
-      let cx = r.left + r.width / 2;
-      cx = Math.max(half + margin, Math.min(cx, vw - half - margin));
-      tip.style.left = cx + 'px';
-      tip.style.top = (r.top - 8) + 'px';
-    }
-
-    // Tag click → load indicator on demand and show floating tooltip
-    document.addEventListener('click', async (e) => {
-      const tag = e.target.closest('.tag');
-      if (!tag) { closeFloatingTip(); return; }
-
-      e.stopPropagation();
-
-      // Toggle off if this tag is already open
-      if (tag.classList.contains('tooltip-open')) { closeFloatingTip(); return; }
-      closeFloatingTip();
-
-      const dt = tag.dataset.date;
-      const sid = tag.dataset.sid;
-      const ttType = tag.dataset.tt; // vs, vh, sx
-      if (!dt || !sid) return;
-
-      // Show loading tip
-      tag.classList.add('tooltip-open');
-      floatingTip = makeTip('<span class="tooltip"><span class="t-label">載入中...</span></span>');
-      document.body.appendChild(floatingTip);
-      positionTip(tag, floatingTip);
-
-      const month = dt.substring(0, 7);
-      const indData = await loadIndicators(month);
-
-      // Guard: user may have closed/switched tag during the await
-      if (!tag.classList.contains('tooltip-open') || !floatingTip) return;
-
-      const indKey = (ttType === 'sx') ? 's' : 'v';
-      const ind = indData?.[dt]?.[sid]?.[indKey] || null;
-      const real = makeTip(buildTooltipHtml(ttType, ind));
-      floatingTip.replaceWith(real);
-      floatingTip = real;
-      positionTip(tag, floatingTip);
-    });
-
-    // Keep the floating tip anchored to its tag: close it on scroll/resize
-    window.addEventListener('scroll', () => { if (floatingTip) closeFloatingTip(); }, true);
-    window.addEventListener('resize', () => { if (floatingTip) closeFloatingTip(); });
 
     loadIndex();
   </script>
