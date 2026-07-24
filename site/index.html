@@ -904,7 +904,7 @@
       <button class="filter-btn active" data-filter="strong" data-group="type">強勢</button>
       <button class="filter-btn active" data-filter="newhigh" data-group="type">新高</button>
       <button class="filter-btn" data-filter="sanxian" data-group="type">三線開花</button>
-      <button class="filter-btn active" data-filter="volsurge" data-group="type">量大強漲</button>
+      <button class="filter-btn" data-filter="volsurge" data-group="type">量大強漲</button>
     </div>
 
     <!-- 匯出工具列（date mode only）；清單固定依「新股優先 → 20 日漲幅」排序 -->
@@ -957,7 +957,7 @@
     let STOCK_INDEX = {};      // { stock_id -> [ entries with date ] } reverse index for search
     let ALL_DATES = [];        // sorted desc, from all loaded months
     let currentMode = 'date';
-    let activeFilters = { market: 'tw', types: new Set(['strong', 'newhigh', 'volsurge']) };  // 預設勾強勢＋新高＋量大強漲；三線開花不預設；至少須選一個
+    let activeFilters = { market: 'tw', types: new Set(['strong', 'newhigh']) };  // 預設勾強勢＋新高；三線開花、量大強漲不預設；至少須選一個
 
     // 連結欄總開關：暫時隱藏（未來改回 true 即全站恢復顯示連結欄，前端表格自動變回 7 欄）
     const SHOW_LINK_COL = false;
