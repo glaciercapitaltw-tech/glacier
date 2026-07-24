@@ -3,8 +3,11 @@ name: Daily Stock Screening
 
 on:
   # 台股收盤後執行（台灣時間 17:45 = UTC 09:45）
-  schedule:
-    - cron: '45 9 * * 1-5'  # 週一至週五 UTC 09:45
+  # 已改用外部觸發（Google Apps Script 定時打 workflow_dispatch），
+  # 因 GitHub 內建 schedule 實測延遲 5~8 小時、且不穩定。
+  # 以下 schedule 保留當備援，取消註解即可恢復（時間維持原本 UTC 09:45）。
+  # schedule:
+  #   - cron: '45 9 * * 1-5'  # 週一至週五 UTC 09:45
 
   # 手動觸發
   workflow_dispatch:

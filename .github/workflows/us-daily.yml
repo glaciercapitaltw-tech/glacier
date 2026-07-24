@@ -3,8 +3,11 @@ name: US Daily Stock Screening
 
 on:
   # 美股收盤後執行（美東 16:00 = UTC 21:00，延後 30 分鐘確保資料就緒）
-  schedule:
-    - cron: '30 21 * * 1-5'  # 週一至週五 UTC 21:30（台灣 05:30）
+  # 已改用外部觸發（Google Apps Script 定時打 workflow_dispatch），
+  # 因 GitHub 內建 schedule 實測延遲 2.7~13 小時、且不穩定。
+  # 以下 schedule 保留當備援，取消註解即可恢復（時間維持原本 UTC 21:30）。
+  # schedule:
+  #   - cron: '30 21 * * 1-5'  # 週一至週五 UTC 21:30（台灣 05:30）
 
   # 手動觸發
   workflow_dispatch:
