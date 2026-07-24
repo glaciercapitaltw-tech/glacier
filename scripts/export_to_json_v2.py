@@ -113,6 +113,11 @@ def query_results(db_path, table, market, sector_col="industry_category"):
             )
             r["s"] = bool(row["is_strong_list"])
             r["h"] = bool(row["is_new_high_list"])
+        elif row["filter_type"] == "volume_surge":
+            r["t"] = "vol"  # 量大強漲（獨立類型，不比新舊）
+            r["r"] = safe_round(
+                row["return_20d"] * 100 if row["return_20d"] is not None else None
+            )
         else:
             r["t"] = "sx"
             # 三線改顯示 20 日漲幅（原突破差距 gap_ratio 已從前端移除）

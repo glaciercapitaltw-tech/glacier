@@ -51,6 +51,7 @@ SHEET_IDS = {
     "tw_vcp": os.getenv("SHEET_ID_TW_VCP", ""),
     "us_vcp": os.getenv("SHEET_ID_US_VCP", ""),  # 暫不使用
     "tw_sanxian": os.getenv("SHEET_ID_TW_SANXIAN", ""),
+    "tw_volume_surge": os.getenv("SHEET_ID_TW_VOLUME_SURGE", ""),
     "us_sanxian": os.getenv("SHEET_ID_US_SANXIAN", ""),  # 暫不使用
     "verification": os.getenv("SHEET_ID_VERIFICATION", ""),
 }

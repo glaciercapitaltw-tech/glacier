@@ -48,6 +48,7 @@ US_SHEET_IDS = {
     "company_master": os.getenv("US_SHEET_ID_COMPANY_MASTER", ""),
     "vcp": os.getenv("US_SHEET_ID_VCP", ""),
     "sanxian": os.getenv("US_SHEET_ID_SANXIAN", ""),
+    "volume_surge": os.getenv("US_SHEET_ID_VOLUME_SURGE", ""),
     "verification": os.getenv("US_SHEET_ID_VERIFICATION", ""),
 }
 

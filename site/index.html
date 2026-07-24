@@ -434,6 +434,7 @@
     .tag.sanxian { background: rgba(167, 139, 250, 0.12); color: var(--tag-sanxian); border: 1px solid rgba(167, 139, 250, 0.2); }
     .tag.strong { background: rgba(52, 211, 153, 0.12); color: var(--tag-strong); border: 1px solid rgba(52, 211, 153, 0.2); }
     .tag.newhigh { background: rgba(251, 191, 36, 0.12); color: var(--tag-newhigh); border: 1px solid rgba(251, 191, 36, 0.2); }
+    .tag.volsurge { background: rgba(234, 88, 12, 0.12); color: #c2410c; border: 1px solid rgba(234, 88, 12, 0.24); }
 
     .detail-value {
       font-size: 13px; color: var(--text-dim); margin-left: auto;
@@ -539,6 +540,12 @@
     /* 連結欄：置中的可點圖示（有自訂連結才顯示） */
     .sheet-cell.c-link { justify-content: center; overflow: visible; }
     .sheet-head .c-link-head { justify-content: center; }
+    /* === 連結欄暫時隱藏開關（由 JS 常數 SHOW_LINK_COL 控制 html.hide-linkcol）===
+       未來要恢復連結欄：把 SHOW_LINK_COL 改回 true 即可；本區塊可保留不影響 === */
+    html.hide-linkcol .c-link, html.hide-linkcol .c-link-head { display: none; }
+    html.hide-linkcol .sheet-head, html.hide-linkcol .sheet-row {
+      grid-template-columns: 64px 82px minmax(94px, 1.1fr) minmax(156px, 1.3fr) minmax(82px, 0.9fr) 98px;
+    }
     .link-btn { text-decoration: none; font-size: 15px; line-height: 1; opacity: 0.8; transition: opacity 0.15s ease, transform 0.15s ease; }
     .link-btn:hover { opacity: 1; transform: scale(1.18); }
 
@@ -897,6 +904,7 @@
       <button class="filter-btn active" data-filter="strong" data-group="type">強勢</button>
       <button class="filter-btn active" data-filter="newhigh" data-group="type">新高</button>
       <button class="filter-btn" data-filter="sanxian" data-group="type">三線開花</button>
+      <button class="filter-btn active" data-filter="volsurge" data-group="type">量大強漲</button>
     </div>
 
     <!-- 匯出工具列（date mode only）；清單固定依「新股優先 → 20 日漲幅」排序 -->
@@ -949,7 +957,11 @@
     let STOCK_INDEX = {};      // { stock_id -> [ entries with date ] } reverse index for search
     let ALL_DATES = [];        // sorted desc, from all loaded months
     let currentMode = 'date';
-    let activeFilters = { market: 'tw', types: new Set(['strong', 'newhigh']) };  // 預設勾強勢＋新高；三線開花不預設；至少須選一個
+    let activeFilters = { market: 'tw', types: new Set(['strong', 'newhigh', 'volsurge']) };  // 預設勾強勢＋新高＋量大強漲；三線開花不預設；至少須選一個
+
+    // 連結欄總開關：暫時隱藏（未來改回 true 即全站恢復顯示連結欄，前端表格自動變回 7 欄）
+    const SHOW_LINK_COL = false;
+    document.documentElement.classList.toggle('hide-linkcol', !SHOW_LINK_COL);
     // 雙排序鏈：[{field,dir}, ...] 最多 2 層。預設 newold desc（新股優先 + 大盤列）
     // 點第1欄=主排序①、點第2欄=次排序②；再點同欄 升↔降↔移除；大盤只在 主排序①=newold 時顯示
     let sortChain = [{ field: 'newold', dir: 'desc' }];
@@ -1012,8 +1024,8 @@
           if (!stock) continue;
           const entry = {
             stock_id: sid, stock_name: stock.n, market: stock.m, industry: stock.i, link: stock.l || null,
-            date: e.d, type: e.t === 'sx' ? 'sanxian' : 'vcp',
-            is_strong: !!e.s, is_new_high: !!e.h,
+            date: e.d, type: e.t === 'sx' ? 'sanxian' : (e.t === 'vol' ? 'volsurge' : 'vcp'),
+            is_strong: !!e.s, is_new_high: !!e.h, is_volsurge: e.t === 'vol',
             return_20d: e.r ?? null, gap_ratio: e.g ?? null,
           };
           if (!DATE_INDEX[e.d]) DATE_INDEX[e.d] = [];
@@ -1109,7 +1121,8 @@
           if (activeFilters.types.size > 0) {
             const match = (activeFilters.types.has('strong') && e.type === 'vcp' && e.is_strong)
               || (activeFilters.types.has('newhigh') && e.type === 'vcp' && e.is_new_high)
-              || (activeFilters.types.has('sanxian') && e.type === 'sanxian');
+              || (activeFilters.types.has('sanxian') && e.type === 'sanxian')
+              || (activeFilters.types.has('volsurge') && e.type === 'volsurge');
             if (!match) return false;
           }
           return true;
@@ -1141,12 +1154,14 @@
         for (const e of stock.appearances) {
           const d = e.date;
           if (!byDate[d]) {
-            byDate[d] = { date: d, is_strong: false, is_new_high: false, is_sanxian: false, return_20d: null };
+            byDate[d] = { date: d, is_strong: false, is_new_high: false, is_sanxian: false, is_volsurge: false, return_20d: null };
           }
           const bd = byDate[d];
           if (e.type === 'vcp') {
             if (e.is_strong) bd.is_strong = true;
             if (e.is_new_high) bd.is_new_high = true;
+          } else if (e.type === 'volsurge') {
+            bd.is_volsurge = true;
           } else {
             bd.is_sanxian = true;
           }
@@ -1238,7 +1253,8 @@
         if (activeFilters.types.size > 0) {
           const match = (activeFilters.types.has('strong') && e.type === 'vcp' && e.is_strong)
             || (activeFilters.types.has('newhigh') && e.type === 'vcp' && e.is_new_high)
-            || (activeFilters.types.has('sanxian') && e.type === 'sanxian');
+            || (activeFilters.types.has('sanxian') && e.type === 'sanxian')
+            || (activeFilters.types.has('volsurge') && e.type === 'volsurge');
           if (!match) return false;
         }
         return true;
@@ -1257,13 +1273,15 @@
         if (!stockMap[e.stock_id]) {
           stockMap[e.stock_id] = {
             stock_id: e.stock_id, stock_name: e.stock_name, market: e.market, industry: e.industry, link: e.link || null,
-            is_strong: false, is_new_high: false, is_sanxian: false, return_20d: null,
+            is_strong: false, is_new_high: false, is_sanxian: false, is_volsurge: false, return_20d: null,
           };
         }
         const s = stockMap[e.stock_id];
         if (e.type === 'vcp') {
           if (e.is_strong) s.is_strong = true;
           if (e.is_new_high) s.is_new_high = true;
+        } else if (e.type === 'volsurge') {
+          s.is_volsurge = true;
         } else {
           s.is_sanxian = true;
         }
@@ -1283,14 +1301,18 @@
       const strongCount = merged.filter(s => s.is_strong).length;
       const newHighCount = merged.filter(s => s.is_new_high).length;
       const sanxianCount = merged.filter(s => s.is_sanxian).length;
+      const volsurgeCount = merged.filter(s => s.is_volsurge).length;
       const bothCount = merged.filter(s => (s.is_strong || s.is_new_high) && s.is_sanxian).length;
-      const newCount = merged.filter(s => s.isNew).length;
+      // 新舊只計「有新舊類型（VCP/三線）」的股票；量大強漲不比新舊、不計入
+      const newOldEligible = merged.filter(s => s.is_strong || s.is_new_high || s.is_sanxian);
+      const newCount = newOldEligible.filter(s => s.isNew).length;
+      const oldCount = newOldEligible.length - newCount;
 
       const clearSortBtn = isDefaultSort() ? '' : `<button class="clear-sort-btn" onclick="resetSort()">清除排序 &#10005;</button>`;
       let html = `<div class="section-header">
         <div class="section-title"><span>${dateStr}</span>${clearSortBtn}</div>
         <div class="section-count">
-          共 ${merged.length} 檔（新 ${newCount} / 舊 ${merged.length - newCount} / 強勢 ${strongCount} / 新高 ${newHighCount} / 三線開花 ${sanxianCount}${bothCount > 0 ? ` / 同時上榜 ${bothCount}` : ''}）
+          共 ${merged.length} 檔（${newOldEligible.length > 0 ? `新 ${newCount} / 舊 ${oldCount} / ` : ''}強勢 ${strongCount} / 新高 ${newHighCount} / 三線開花 ${sanxianCount}${volsurgeCount > 0 ? ` / 量大強漲 ${volsurgeCount}` : ''}${bothCount > 0 ? ` / 同時上榜 ${bothCount}` : ''}）
         </div>
       </div>`;
       const rowArr = merged.map(s => renderDateStockRow(s));
@@ -1402,11 +1424,15 @@
 
     function renderDateStockRow(s) {
       const tags = buildTags(s);
-      const newOldCls = s.isNew ? 'is-new' : 'is-old';
+      // 量大強漲不比新舊：若這檔沒有 vcp/三線類型（純量大強漲）→ 新舊欄顯示「-」
+      const hasNewOldType = s.is_strong || s.is_new_high || s.is_sanxian;
+      const newOldCls = (hasNewOldType && s.isNew) ? 'is-new' : 'is-old';
       const nt = escapeHtml(newOldTitle(s));
-      const newOldLabel = s.isNew
-        ? `<span class="new-old-label is-new" title="${nt}">新</span>`
-        : `<span class="new-old-label is-old" title="${nt}">舊</span>`;
+      const newOldLabel = !hasNewOldType
+        ? `<span class="new-old-label" title="量大強漲不比較新舊">-</span>`
+        : (s.isNew
+          ? `<span class="new-old-label is-new" title="${nt}">新</span>`
+          : `<span class="new-old-label is-old" title="${nt}">舊</span>`);
 
       // 數字欄：有值顯示帶號百分比並著色，無值顯示「-」
       const numCell = (v) => {
@@ -1504,7 +1530,8 @@
         if (activeFilters.types.size > 0) {
           const match = (activeFilters.types.has('strong') && e.type === 'vcp' && e.is_strong)
             || (activeFilters.types.has('newhigh') && e.type === 'vcp' && e.is_new_high)
-            || (activeFilters.types.has('sanxian') && e.type === 'sanxian');
+            || (activeFilters.types.has('sanxian') && e.type === 'sanxian')
+            || (activeFilters.types.has('volsurge') && e.type === 'volsurge');
           if (!match) return false;
         }
         return true;
@@ -1548,6 +1575,7 @@
       if (item.is_strong) tags += `<span class="tag strong">${m ? '強' : '強勢'}</span> `;
       if (item.is_new_high) tags += `<span class="tag newhigh">新高</span> `;
       if (item.is_sanxian) tags += `<span class="tag sanxian">${m ? '三花' : '三線開花'}</span> `;
+      if (item.is_volsurge) tags += `<span class="tag volsurge">${m ? '量強' : '量大強漲'}</span> `;
       return tags;
     }
 

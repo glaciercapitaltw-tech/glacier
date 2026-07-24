@@ -12,6 +12,7 @@ from config.us_settings import get_us_client
 from data.us_database import USSQLiteDatabase
 from calculators.us_vcp_filter import USVCPFilter, calculate_us_market_return
 from calculators.us_sanxian_filter import USSanxianFilter
+from calculators.us_volume_surge_filter import USVolumeSurgeFilter
 from exporters.us_google_sheet import USGoogleSheetExporter
 from utils.us_trading_calendar import USMarketCalendar
 from utils.us_split_detector import USSplitDetector
@@ -60,6 +61,7 @@ class USDailyTask:
         # 篩選器
         self.vcp_filter = USVCPFilter()
         self.sanxian_filter = USSanxianFilter()
+        self.volume_surge_filter = USVolumeSurgeFilter()
 
     def run(
         self,
@@ -112,6 +114,7 @@ class USDailyTask:
                     "price_count": 0,
                     "vcp_count": 0,
                     "sanxian_count": 0,
+                    "volume_surge_count": 0,
                     "errors": [],
                 }
             else:
@@ -131,6 +134,7 @@ class USDailyTask:
             "split_refreshed_count": 0,
             "vcp_count": 0,
             "sanxian_count": 0,
+            "volume_surge_count": 0,
             "errors": [],
         }
 
@@ -222,12 +226,17 @@ class USDailyTask:
                 logger.warning("無美股大盤指數資料，VCP 篩選可能不準確")
 
             # Step 4: 執行篩選
-            vcp_results, sanxian_results, market_return = self._run_filters(target_date)
+            vcp_results, sanxian_results, volume_surge_results, market_return = \
+                self._run_filters(target_date)
             result["vcp_count"] = len(vcp_results)
             result["sanxian_count"] = len(sanxian_results)
+            result["volume_surge_count"] = len(volume_surge_results)
 
             # Step 5: 匯出至美股 Google Sheet
-            self._export_to_sheet(target_date, vcp_results, sanxian_results, market_return)
+            self._export_to_sheet(
+                target_date, vcp_results, sanxian_results,
+                volume_surge_results, market_return
+            )
 
             # Step 6: 每日自動驗證
             verifier = DailyVerifier(self.db, market="us", min_price_count=6500)
@@ -522,11 +531,13 @@ class USDailyTask:
 
         return len(adjusted_stocks)
 
-    def _run_filters(self, target_date: date) -> tuple[list[dict], list[dict], float]:
+    def _run_filters(
+        self, target_date: date
+    ) -> tuple[list[dict], list[dict], list[dict], float]:
         """執行美股篩選
 
         Returns:
-            (vcp_results, sanxian_results, market_return_20d)
+            (vcp_results, sanxian_results, volume_surge_results, market_return_20d)
         """
         logger.info("執行美股篩選...")
 
@@ -537,7 +548,7 @@ class USDailyTask:
 
         if price_df.empty:
             logger.warning("無足夠美股歷史資料")
-            return [], [], 0.0
+            return [], [], [], 0.0
 
         # 計算 S&P 500 報酬率
         market_return = calculate_us_market_return(market_df, target_date, lookback=20)
@@ -563,9 +574,14 @@ class USDailyTask:
         sanxian_df = self.sanxian_filter.filter(price_df, target_date)
         sanxian_results = self._enrich_results(sanxian_df, stock_info)
 
+        # 量大強漲篩選（獨立第四類，不比較新舊）
+        volume_surge_df = self.volume_surge_filter.filter(price_df, target_date)
+        volume_surge_results = self._enrich_results(volume_surge_df, stock_info)
+
         # 儲存篩選結果
         self.db.save_filter_results(vcp_results, "vcp", target_date)
         self.db.save_filter_results(sanxian_results, "sanxian", target_date)
+        self.db.save_filter_results(volume_surge_results, "volume_surge", target_date)
 
         # 準備驗證資料
         self._vcp_verification_data = self._prepare_vcp_verification(
@@ -575,7 +591,7 @@ class USDailyTask:
             price_df, target_date
         )
 
-        return vcp_results, sanxian_results, market_return
+        return vcp_results, sanxian_results, volume_surge_results, market_return
 
     def _enrich_results(
         self,
@@ -729,6 +745,7 @@ class USDailyTask:
         target_date: date,
         vcp_results: list[dict],
         sanxian_results: list[dict],
+        volume_surge_results: list[dict],
         market_return: float = 0.0
     ):
         """匯出至美股 Google Sheet"""
@@ -751,6 +768,10 @@ class USDailyTask:
             self.exporter.export_sanxian(
                 sanxian_results, target_date, prev_stock_ids=recent_sanxian_ids
             )
+
+        # 匯出量大強漲（獨立類型，不比較新舊、不傳 prev_stock_ids）
+        if volume_surge_results:
+            self.exporter.export_volume_surge(volume_surge_results, target_date)
 
         # 匯出驗證資料
         vcp_verification = getattr(self, "_vcp_verification_data", [])

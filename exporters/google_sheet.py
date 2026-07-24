@@ -644,6 +644,130 @@ class GoogleSheetExporter:
             logger.error(f"三線開花匯出失敗: {e}")
             return False
 
+    # ==================== 量大強漲篩選結果 ====================
+
+    def export_volume_surge(
+        self,
+        data: list[dict],
+        target_date: date,
+        sheet_id: Optional[str] = None
+    ) -> bool:
+        """
+        匯出量大強漲篩選結果（獨立類型，不比較新舊、無顏色標記）
+
+        Args:
+            data: 量大強漲篩選結果列表
+            target_date: 篩選日期
+            sheet_id: Sheet ID
+
+        Returns:
+            是否成功
+        """
+        sheet_id = sheet_id or SHEET_IDS.get("tw_volume_surge")
+        if not sheet_id:
+            logger.error("未設定台股量大強漲 Sheet ID")
+            return False
+
+        sheet = self._get_sheet(sheet_id)
+        if not sheet:
+            return False
+
+        try:
+            tab_name = self._format_date_tab(target_date)
+
+            # 建立新分頁（插入在第二位）
+            try:
+                existing = sheet.worksheet(tab_name)
+                sheet.del_worksheet(existing)
+            except gspread.WorksheetNotFound:
+                pass
+
+            worksheet = sheet.add_worksheet(
+                title=tab_name,
+                rows=max(len(data) + 1, 2),  # 至少 2 行（標題+1資料）
+                cols=8,
+                index=1
+            )
+
+            # 標題列
+            headers = [
+                "代號", "股名", "產業分類1", "產業分類2",
+                "今日股價", "波動範圍", "量能倍數", "20日漲幅"
+            ]
+
+            # 資料列（處理 NaN/inf 值）
+            def safe_price(val):
+                """安全格式化價格"""
+                if val is None or (isinstance(val, float) and (pd.isna(val) or np.isinf(val))):
+                    return "-"
+                return f"{val:.2f}"
+
+            def safe_pct(val):
+                """安全格式化百分比（波動範圍 / 20日漲幅）"""
+                if val is None or (isinstance(val, float) and (pd.isna(val) or np.isinf(val))):
+                    return "-"
+                return f"{val * 100:.2f}%"
+
+            def safe_ratio(val):
+                """安全格式化量能倍數"""
+                if val is None or (isinstance(val, float) and (pd.isna(val) or np.isinf(val))):
+                    return "-"
+                return f"{val:.2f}倍"
+
+            # 排序：按 20 日漲幅降冪（不比新舊）
+            def sort_key_return(row):
+                val = row.get("return_20d")
+                if val is None or (isinstance(val, float) and (pd.isna(val) or np.isinf(val))):
+                    return float("-inf")
+                return val
+
+            sorted_data = sorted(data, key=sort_key_return, reverse=True)
+
+            rows = [headers] + [
+                [
+                    row.get("stock_id", ""),
+                    row.get("stock_name", ""),
+                    row.get("industry_category", "-"),
+                    row.get("industry_category2", "-"),
+                    safe_price(row.get("close_price")),
+                    safe_pct(row.get("vol_range")),
+                    safe_ratio(row.get("volume_ratio")),
+                    safe_pct(row.get("return_20d")),
+                ]
+                for row in sorted_data
+            ]
+
+            # 批次寫入
+            worksheet.update(rows, "A1")
+
+            logger.info(f"量大強漲篩選結果匯出完成: {len(data)} 筆 -> {tab_name}")
+
+            # 自動排序頁籤（最新日期在前）
+            self.sort_worksheets_by_date(sheet_id)
+
+            return True
+
+        except gspread.exceptions.APIError as e:
+            # Google API 限流，嘗試重試
+            if "RATE_LIMIT_EXCEEDED" in str(e) or "429" in str(e):
+                # 確認 worksheet 和 rows 已定義才能重試
+                if 'worksheet' in dir() and 'rows' in dir():
+                    for retry in range(GSHEET_MAX_RETRIES):
+                        logger.warning(f"Google API 限流，{GSHEET_RETRY_DELAY} 秒後重試 ({retry + 1}/{GSHEET_MAX_RETRIES})...")
+                        time.sleep(GSHEET_RETRY_DELAY * (retry + 1))
+                        try:
+                            worksheet.update(rows, "A1")
+                            logger.info(f"量大強漲篩選結果匯出完成: {len(data)} 筆 -> {tab_name}")
+                            self.sort_worksheets_by_date(sheet_id)
+                            return True
+                        except Exception:
+                            continue
+            logger.error(f"量大強漲匯出失敗: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"量大強漲匯出失敗: {e}")
+            return False
+
     # ==================== 新/舊股票背景色 ====================
 
     def _apply_new_old_colors(
