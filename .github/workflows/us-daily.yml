@@ -81,6 +81,7 @@ jobs:
           US_SHEET_ID_COMPANY_MASTER: ${{ secrets.US_SHEET_ID_COMPANY_MASTER }}
           US_SHEET_ID_VCP: ${{ secrets.US_SHEET_ID_VCP }}
           US_SHEET_ID_SANXIAN: ${{ secrets.US_SHEET_ID_SANXIAN }}
+          US_SHEET_ID_VOLUME_SURGE: ${{ secrets.US_SHEET_ID_VOLUME_SURGE }}
           US_SHEET_ID_VERIFICATION: ${{ secrets.US_SHEET_ID_VERIFICATION }}
         run: |
           if [ ! -f "data/zf_trend_us.db" ]; then
@@ -98,6 +99,7 @@ jobs:
           US_SHEET_ID_COMPANY_MASTER: ${{ secrets.US_SHEET_ID_COMPANY_MASTER }}
           US_SHEET_ID_VCP: ${{ secrets.US_SHEET_ID_VCP }}
           US_SHEET_ID_SANXIAN: ${{ secrets.US_SHEET_ID_SANXIAN }}
+          US_SHEET_ID_VOLUME_SURGE: ${{ secrets.US_SHEET_ID_VOLUME_SURGE }}
           US_SHEET_ID_VERIFICATION: ${{ secrets.US_SHEET_ID_VERIFICATION }}
         run: |
           if [ "${{ github.event.inputs.target_date }}" != "" ]; then
