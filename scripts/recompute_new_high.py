@@ -81,6 +81,9 @@ def recompute_tw() -> None:
         MovingAverageCalculator.prepare_sanxian_data,
         price_df,
     )
+    # 量大強漲用「原始股價」（未 fix_zero_prices）——不可用 vcp_data；date 先轉一次
+    price_raw = price_df.copy()
+    price_raw["date"] = pd.to_datetime(price_raw["date"]).dt.date
 
     logger.info(f"台股：重算 {len(dates)} 天 ({dates[0]} ~ {dates[-1]})")
     for i, ds in enumerate(dates):
@@ -89,6 +92,7 @@ def recompute_tw() -> None:
         res = run_filters_for_date(
             db, td, stock_info,
             vcp_data=vcp_data, sanxian_data=sanxian_data, market_df=market_df,
+            price_raw=price_raw,
         )
         if (i + 1) % 30 == 0 or i == len(dates) - 1:
             logger.info(
@@ -118,6 +122,9 @@ def recompute_us() -> None:
         USMovingAverageCalculator.prepare_sanxian_data,
         price_df,
     )
+    # 量大強漲用「原始股價」（未 fix_zero_prices）——不可用 vcp_data；date 先轉一次
+    price_raw = price_df.copy()
+    price_raw["date"] = pd.to_datetime(price_raw["date"]).dt.date
 
     logger.info(f"美股：重算 {len(dates)} 天 ({dates[0]} ~ {dates[-1]})")
     for i, ds in enumerate(dates):
@@ -126,6 +133,7 @@ def recompute_us() -> None:
         res = run_us_filters_for_date(
             db, td, stock_info,
             vcp_data=vcp_data, sanxian_data=sanxian_data, market_df=market_df,
+            price_raw=price_raw,
         )
         if (i + 1) % 30 == 0 or i == len(dates) - 1:
             logger.info(

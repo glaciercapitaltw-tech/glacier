@@ -128,11 +128,14 @@ def _extract_sanxian_indicators(row):
 
 
 def run_us_filters_for_date(db, target_date, stock_info, new_high_tolerance=0.01,
-                            vcp_data=None, sanxian_data=None, market_df=None):
+                            vcp_data=None, sanxian_data=None, market_df=None,
+                            price_raw=None):
     """對指定日期執行美股篩選並提取指標值。
 
     若提供已對「全歷史」prepare 過的 vcp_data／sanxian_data／market_df（date 欄已轉為
     datetime.date），則直接切片，跳過每日重複載入與 rolling 重算，供全量重算加速。
+
+    price_raw：原始股價（未 fix_zero_prices），量大強漲須用原始股價（與每日任務一致）。
     """
     if vcp_data is None or sanxian_data is None or market_df is None:
         start_date = target_date - timedelta(days=400)
@@ -146,6 +149,9 @@ def run_us_filters_for_date(db, target_date, stock_info, new_high_tolerance=0.01
         price_df = price_df[price_df["stock_id"].isin(valid_ids)]
         if price_df.empty:
             return {"date": target_date, "vcp": 0, "sanxian": 0, "skipped": "no_valid_stock"}
+
+        if price_raw is None:
+            price_raw = price_df  # 非優化路徑：用剛載入的原始股價
 
         price_dates = pd.to_datetime(price_df["date"]).dt.date
         if target_date not in price_dates.values:
@@ -240,15 +246,46 @@ def run_us_filters_for_date(db, target_date, stock_info, new_high_tolerance=0.01
                     "indicator_json": _extract_sanxian_indicators(row),
                 })
 
+    # === Volume Surge (量大強漲)：與每日任務同一路徑重算 ===
+    # 用「原始股價」（未 fix_zero_prices），與每日任務一致；取近窗口切片（lookback=20，150 日足夠）
+    from calculators.us_volume_surge_filter import USVolumeSurgeFilter
+
+    pr = price_raw
+    if pr is not None and not pr.empty and not isinstance(pr["date"].iloc[0], date):
+        pr = pr.copy()
+        pr["date"] = pd.to_datetime(pr["date"]).dt.date
+    vol_src = pr[
+        (pr["date"] > target_date - timedelta(days=150))
+        & (pr["date"] <= target_date)
+    ] if pr is not None else pd.DataFrame()
+    vol_df = USVolumeSurgeFilter().filter(vol_src, target_date)
+    volume_surge_results = []
+    for _, row in vol_df.iterrows():
+        sid = row["stock_id"]
+        info = stock_info.get(sid, {})
+        r = {k: (None if isinstance(v, float) and pd.isna(v) else v)
+             for k, v in row.to_dict().items()}
+        r.update({
+            "stock_name": info.get("stock_name", ""),
+            "exchange": info.get("exchange", "-") or "-",
+            "sector": info.get("sector", "-") or "-",
+            "industry": info.get("industry", "-") or "-",
+            "industry_category": info.get("sector", "-") or "-",
+        })
+        volume_surge_results.append(r)
+
     if vcp_results:
         db.save_filter_results(vcp_results, "vcp", target_date)
     if sanxian_results:
         db.save_filter_results(sanxian_results, "sanxian", target_date)
+    if volume_surge_results:
+        db.save_filter_results(volume_surge_results, "volume_surge", target_date)
 
     return {
         "date": target_date,
         "vcp": len(vcp_results),
         "sanxian": len(sanxian_results),
+        "volume_surge": len(volume_surge_results),
         "skipped": None,
     }
 
