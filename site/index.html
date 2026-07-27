@@ -1317,12 +1317,18 @@
       </div>`;
       const rowArr = merged.map(s => renderDateStockRow(s));
       // 大盤基準列：只在「新舊=主排序①」時顯示，插在新/舊交界；其他排序時移除
-      if (sortChain[0].field === 'newold') {
+      if (sortChain[0].field === 'newold' && merged.length > 0) {
         const mrMap = (INDEX.mr && INDEX.mr[activeFilters.market]) || {};
         const marketReturn = mrMap[dateStr] ?? null;
         const marketLabel = activeFilters.market === 'us' ? 'S&P 500' : '加權指數';
+        // 找新/舊交界：splice 之前的列屬「新股群」、之後屬「舊股群」
         let at = merged.findIndex((s, k) => k > 0 && s.isNew !== merged[0].isNew);
-        if (at === -1) at = rowArr.length;
+        if (at === -1) {
+          // 全部同一組（全新或全舊）：把大盤列放在「舊股群」外緣，而非一律塞最後
+          // desc(新前舊後)：全舊→最前(0)、全新→最後(end)；asc(舊前新後)相反
+          const desc = sortChain[0].dir === 'desc';
+          at = (!!merged[0].isNew === desc) ? rowArr.length : 0;
+        }
         rowArr.splice(at, 0, renderMarketRow(marketReturn, marketLabel));
       }
       const rows = rowArr.join('');
