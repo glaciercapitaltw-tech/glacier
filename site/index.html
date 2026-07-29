@@ -613,6 +613,8 @@
 
     .new-old-label.is-new { background: var(--green-dim); color: var(--green); }
     .new-old-label.is-old { background: rgba(12, 36, 67,0.06); color: var(--text-dim); }
+    .appearance-item.is-unknown { background: rgba(12, 36, 67, 0.02); }
+    .new-old-label.is-unknown { background: rgba(12, 36, 67,0.05); color: rgba(12, 36, 67, 0.45); }
 
     .date-stock-row .stock-id { font-size: 15px; min-width: 70px; }
     .date-stock-row .stock-name { font-size: 14px; min-width: 100px; }
@@ -1148,6 +1150,9 @@
       const openIds = new Set();
       document.querySelectorAll('.stock-card.open .stock-id').forEach(el => openIds.add(el.textContent));
 
+      // 是否還有更早月份可載入（決定 buffer 區的日期要「暫不顯示」還是「標—」）
+      const moreToLoad = Object.keys(MONTH_CACHE).length < INDEX.months.length;
+
       let html = stocks.map(stock => {
         // Group by date using pre-filtered appearances
         const byDate = {};
@@ -1167,7 +1172,13 @@
           }
           if (e.return_20d != null) bd.return_20d = e.return_20d;
         }
-        const merged = Object.values(byDate).sort((a, b) => b.date.localeCompare(a.date));
+        const mergedAll = Object.values(byDate).sort((a, b) => b.date.localeCompare(a.date));
+        // A：某日的前 20 交易日資料尚未載入且還能載更多 → 暫不顯示（避免邊界誤判為「新」）；
+        //    已載完全部月份（資料集最早段）→ 顯示但新舊標「—」。
+        const merged = mergedAll.filter(a => {
+          a._known = newOldKnown(a.date);
+          return a._known || !moreToLoad;
+        });
         const appearanceHtml = merged.map(a => renderAppearanceRow(a, stock.stock_id)).join('');
         const loadedMonths = Object.keys(MONTH_CACHE).length;
         const hasMore = stock.totalMonths > loadedMonths;
@@ -1483,6 +1494,31 @@
     // 不能把兩種類型混成一個聯集——例如 6901 鑽石投資近 20 日上過 7 次「三線」但從未
     // 進過 VCP 清單，混在一起算會被誤判成「舊股」，但它其實是「VCP 新股」。
     // 回傳 { vcp: Set(...), sanxian: Set(...) }
+    // 完整交易日清單（含尚未載入的月份）：用 INDEX.mr 的 key（大盤報酬每個交易日都有）
+    let _fullDates = null, _fullIdx = null, _fullMarket = null;
+    function ensureFullDates() {
+      const mk = activeFilters.market;
+      if (_fullMarket === mk && _fullDates) return;
+      const mr = (INDEX && INDEX.mr && INDEX.mr[mk]) || {};
+      const keys = Object.keys(mr);
+      _fullDates = keys.length ? keys.sort().reverse() : null;   // null → 退回用 ALL_DATES
+      _fullIdx = _fullDates ? new Map(_fullDates.map((d, i) => [d, i])) : null;
+      _fullMarket = mk;
+    }
+    // 該日的新舊是否「可判斷」：它「真實的前 20 交易日」資料是否都已載入
+    // （未載入且還有月份可載 → 呼叫端暫不顯示；資料集最早日前面無資料 → 顯示但標「—」）
+    function newOldKnown(dateStr) {
+      ensureFullDates();
+      const dates = _fullDates || ALL_DATES;
+      const i = _fullIdx ? _fullIdx.get(dateStr) : dates.indexOf(dateStr);
+      if (i == null || i < 0) return false;
+      const prior = dates.slice(i + 1, i + 1 + NEW_STOCK_LOOKBACK);
+      if (prior.length === 0) return false;              // 資料集最早日，前面無資料
+      // 每個前置交易日的月份都要已載入；篩選資料起點之前的月份（不在 INDEX.months）
+      // 永遠載不到 → 該段（資料集最早約 20 交易日）判為「不可知」→ 標「—」，不硬標新舊
+      return prior.every(d => MONTH_CACHE[d.slice(0, 7)]);
+    }
+
     function getRecentStockIdsByType(dateStr) {
       const byType = { vcp: new Set(), sanxian: new Set() };
       const idx = ALL_DATES.indexOf(dateStr);
@@ -1587,15 +1623,22 @@
 
     function renderAppearanceRow(a, stockId) {
       const tags = buildTags(a);
-      // 同類型比較（與 Sheet 一致）：VCP 比 VCP、三線比三線
-      const recentByType = getRecentStockIdsByType(a.date);
-      const stockObj = { ...a, stock_id: stockId };
-      const isNew = isNewStock(stockObj, recentByType);
-      const newOldCls = isNew ? 'is-new' : 'is-old';
-      const nt = escapeHtml(newOldTitle({ isNew, newReasons: newStockReasons(stockObj, recentByType) }));
-      const newOldLabel = isNew
-        ? `<span class="new-old-label is-new" title="${nt}">新</span>`
-        : `<span class="new-old-label is-old" title="${nt}">舊</span>`;
+      let newOldCls, newOldLabel;
+      if (a._known === false) {
+        // 真實前 20 交易日資料不足（資料集最早段），無法判斷新舊
+        newOldCls = 'is-unknown';
+        newOldLabel = `<span class="new-old-label is-unknown" title="前 20 交易日資料不足，無法判斷新舊">—</span>`;
+      } else {
+        // 同類型比較（與 Sheet 一致）：VCP 比 VCP、三線比三線
+        const recentByType = getRecentStockIdsByType(a.date);
+        const stockObj = { ...a, stock_id: stockId };
+        const isNew = isNewStock(stockObj, recentByType);
+        newOldCls = isNew ? 'is-new' : 'is-old';
+        const nt = escapeHtml(newOldTitle({ isNew, newReasons: newStockReasons(stockObj, recentByType) }));
+        newOldLabel = isNew
+          ? `<span class="new-old-label is-new" title="${nt}">新</span>`
+          : `<span class="new-old-label is-old" title="${nt}">舊</span>`;
+      }
       let details = '';
       if (a.return_20d != null) {
         const cls = a.return_20d >= 0 ? 'positive' : 'negative';
