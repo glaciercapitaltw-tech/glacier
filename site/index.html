@@ -1115,7 +1115,7 @@
         return;
       }
       // Use STOCK_INDEX for O(1) lookup
-      const results = matchedIds.map(sid => {
+      let results = matchedIds.map(sid => {
         const s = INDEX.stocks[sid];
         const all = STOCK_INDEX[sid] || [];
         const appearances = all.filter(e => {
@@ -1133,7 +1133,13 @@
         return { stock_id: sid, stock_name: s.n, market: s.m, industry: s.i, appearances, totalMonths };
       }).filter(s => s.appearances.length > 0 || s.totalMonths > 0);
 
-      results.sort((a, b) => b.appearances.length - a.appearances.length);
+      // 排序優先序：股號完全相符 → 股號開頭相符 → 其他（名稱命中）；同層再依上榜次數
+      results.sort((a, b) => {
+        const rank = s => s.stock_id.toLowerCase() === q ? 0
+                        : s.stock_id.toLowerCase().startsWith(q) ? 1 : 2;
+        const d = rank(a) - rank(b);
+        return d !== 0 ? d : b.appearances.length - a.appearances.length;
+      });
       // Limit to top 50 to avoid rendering lag
       const totalFound = results.length;
       if (results.length > 50) results = results.slice(0, 50);
@@ -1494,29 +1500,24 @@
     // 不能把兩種類型混成一個聯集——例如 6901 鑽石投資近 20 日上過 7 次「三線」但從未
     // 進過 VCP 清單，混在一起算會被誤判成「舊股」，但它其實是「VCP 新股」。
     // 回傳 { vcp: Set(...), sanxian: Set(...) }
-    // 完整交易日清單（含尚未載入的月份）：用 INDEX.mr 的 key（大盤報酬每個交易日都有）
-    let _fullDates = null, _fullIdx = null, _fullMarket = null;
-    function ensureFullDates() {
-      const mk = activeFilters.market;
-      if (_fullMarket === mk && _fullDates) return;
-      const mr = (INDEX && INDEX.mr && INDEX.mr[mk]) || {};
-      const keys = Object.keys(mr);
-      _fullDates = keys.length ? keys.sort().reverse() : null;   // null → 退回用 ALL_DATES
-      _fullIdx = _fullDates ? new Map(_fullDates.map((d, i) => [d, i])) : null;
-      _fullMarket = mk;
+    // 新舊判斷用的交易日曆 = ALL_DATES（已載入月份的篩選日；每個交易日都有篩選結果，
+    // 不像 INDEX.mr 大盤報酬會缺日）。與實際比對函式 getRecentStockIdsByType 用同一份，判斷才一致。
+    // 用 length 當快取失效鍵：載入更多月份時 ALL_DATES 變長 → 重建索引。
+    let _dateIdxCache = null, _dateIdxCacheLen = -1;
+    function _dateIndexInAll(dateStr) {
+      if (_dateIdxCacheLen !== ALL_DATES.length) {
+        _dateIdxCache = new Map(ALL_DATES.map((d, i) => [d, i]));
+        _dateIdxCacheLen = ALL_DATES.length;
+      }
+      return _dateIdxCache.has(dateStr) ? _dateIdxCache.get(dateStr) : -1;
     }
-    // 該日的新舊是否「可判斷」：它「真實的前 20 交易日」資料是否都已載入
-    // （未載入且還有月份可載 → 呼叫端暫不顯示；資料集最早日前面無資料 → 顯示但標「—」）
+    // 該日的新舊是否「可判斷」：ALL_DATES 中它之後（更早方向）還有 ≥20 個已載入交易日
+    // → 前 20 交易日資料齊全。不足（最早載入的 20 天）：還能載更多 → 呼叫端暫不顯示；
+    //   已全部載入（資料集最早約 20 交易日、前面無資料可比）→ 標「—」。
     function newOldKnown(dateStr) {
-      ensureFullDates();
-      const dates = _fullDates || ALL_DATES;
-      const i = _fullIdx ? _fullIdx.get(dateStr) : dates.indexOf(dateStr);
-      if (i == null || i < 0) return false;
-      const prior = dates.slice(i + 1, i + 1 + NEW_STOCK_LOOKBACK);
-      if (prior.length === 0) return false;              // 資料集最早日，前面無資料
-      // 每個前置交易日的月份都要已載入；篩選資料起點之前的月份（不在 INDEX.months）
-      // 永遠載不到 → 該段（資料集最早約 20 交易日）判為「不可知」→ 標「—」，不硬標新舊
-      return prior.every(d => MONTH_CACHE[d.slice(0, 7)]);
+      const i = _dateIndexInAll(dateStr);
+      if (i < 0) return false;
+      return (i + NEW_STOCK_LOOKBACK) < ALL_DATES.length;
     }
 
     function getRecentStockIdsByType(dateStr) {
