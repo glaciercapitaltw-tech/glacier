@@ -77,7 +77,7 @@ class VolumeSurgeFilter:
             if pd.isna(low_min) or low_min <= 0:
                 continue
 
-            vol_range = (high_max - low_min) / low_min  # 條件 1：波動範圍（前 lookback 日，不含當日）
+            vol_range = (high_max - low_min) / high_max  # 條件 1：波動範圍（前 lookback 日，不含當日；分母用最高）
 
             avg_vol = prev["volume"].mean()
             today_vol = g.iloc[-1]["volume"]
