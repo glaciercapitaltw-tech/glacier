@@ -19,14 +19,14 @@ class VolumeSurgeFilter:
     def __init__(
         self,
         lookback: int = 20,
-        range_threshold: float = 0.20,
+        range_threshold: float = 0.25,
         volume_multiple: float = 3.0,
         day_change_threshold: float = 0.03,
     ):
         """
         Args:
-            lookback: 回看交易日數（波動範圍與均量都用這個窗口）
-            range_threshold: 波動範圍上限（0.20 = 20%）
+            lookback: 回看交易日數（波動範圍與均量都用「前 lookback 日、不含當日」）
+            range_threshold: 波動範圍上限（0.25 = 25%）
             volume_multiple: 成交量倍數門檻（3.0 = 3 倍）
             day_change_threshold: 當日漲幅下限（0.03 = 今日收盤較前一交易日漲超過 3%）
         """
@@ -70,15 +70,15 @@ class VolumeSurgeFilter:
             if len(g) < self.lookback + 1:
                 continue
 
-            recent = g.tail(self.lookback)  # 近 lookback 日（含當日）
-            low_min = recent["low_price"].min()
-            high_max = recent["high_price"].max()
+            # 前 lookback 日（不含當日）：波動範圍與均量都看這段，判斷「當日之前有沒有窄幅整理」
+            prev = g.iloc[-(self.lookback + 1):-1]
+            low_min = prev["low_price"].min()
+            high_max = prev["high_price"].max()
             if pd.isna(low_min) or low_min <= 0:
                 continue
 
-            vol_range = (high_max - low_min) / low_min  # 條件 1：波動範圍
+            vol_range = (high_max - low_min) / low_min  # 條件 1：波動範圍（前 lookback 日，不含當日）
 
-            prev = g.iloc[-(self.lookback + 1):-1]  # 前 lookback 日（不含當日）
             avg_vol = prev["volume"].mean()
             today_vol = g.iloc[-1]["volume"]
             if not avg_vol or avg_vol <= 0 or pd.isna(today_vol):
