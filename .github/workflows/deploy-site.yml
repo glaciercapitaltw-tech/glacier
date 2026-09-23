@@ -43,32 +43,48 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 下載台股資料庫
+      # 下載台股資料庫（加重試 + 完整性驗證）
+      # 台股 daily 一天多次 --clobber 替換 db-backup，deploy 緊接著下載會撞上「asset 正在
+      # 替換」的窗口而失敗。以前 continue-on-error 讓它失敗照樣往下跑，export 匯出空台股、
+      # 把線上好資料洗掉。改為：撞窗口就等 20 秒重試（最多 5 次）；重試後仍失敗就 exit 1
+      # 中止整個部署，寧可這次不更新，也不用空台股覆蓋線上。
       - name: Download TW database from Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p data
-          if gh release download db-backup -p "zf_trend_full.db.gz" -D /tmp/ 2>/dev/null; then
-            gunzip -c /tmp/zf_trend_full.db.gz > data/zf_trend.db
-            echo "✅ 台股資料庫下載完成"
-          else
-            echo "⚠️ 台股資料庫不存在"
-          fi
-        continue-on-error: true
+          for attempt in 1 2 3 4 5; do
+            rm -f /tmp/zf_trend_full.db.gz data/zf_trend.db
+            if gh release download db-backup -p "zf_trend_full.db.gz" -D /tmp/ --clobber \
+               && gunzip -c /tmp/zf_trend_full.db.gz > data/zf_trend.db \
+               && python3 -c "import sqlite3,sys; c=sqlite3.connect('data/zf_trend.db'); sys.exit(0 if c.execute('SELECT COUNT(*) FROM daily_price').fetchone()[0]>0 else 1)"; then
+              echo "✅ 台股資料庫下載完成（第 $attempt 次嘗試）"
+              exit 0
+            fi
+            echo "⚠️ 第 $attempt 次下載/驗證失敗（可能撞上 db-backup 替換窗口），等 20 秒重試..."
+            sleep 20
+          done
+          echo "❌ 台股資料庫下載失敗（重試 5 次仍失敗），中止部署以免用空台股覆蓋線上好資料"
+          exit 1
 
-      # 下載美股資料庫
+      # 下載美股資料庫（同台股：重試 + 完整性驗證 + 失敗中止，避免空美股洗掉線上）
       - name: Download US database from Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release download us-db-backup -p "zf_trend_us.db.gz" -D /tmp/ 2>/dev/null; then
-            gunzip -c /tmp/zf_trend_us.db.gz > data/zf_trend_us.db
-            echo "✅ 美股資料庫下載完成"
-          else
-            echo "⚠️ 美股資料庫不存在"
-          fi
-        continue-on-error: true
+          for attempt in 1 2 3 4 5; do
+            rm -f /tmp/zf_trend_us.db.gz data/zf_trend_us.db
+            if gh release download us-db-backup -p "zf_trend_us.db.gz" -D /tmp/ --clobber \
+               && gunzip -c /tmp/zf_trend_us.db.gz > data/zf_trend_us.db \
+               && python3 -c "import sqlite3,sys; c=sqlite3.connect('data/zf_trend_us.db'); sys.exit(0 if c.execute('SELECT COUNT(*) FROM us_daily_price').fetchone()[0]>0 else 1)"; then
+              echo "✅ 美股資料庫下載完成（第 $attempt 次嘗試）"
+              exit 0
+            fi
+            echo "⚠️ 第 $attempt 次下載/驗證失敗（可能撞上 us-db-backup 替換窗口），等 20 秒重試..."
+            sleep 20
+          done
+          echo "❌ 美股資料庫下載失敗（重試 5 次仍失敗），中止部署以免用空美股覆蓋線上好資料"
+          exit 1
 
       # 同步「自訂產業連結」Sheet → DB，讓 Sheet 上的編輯不必等隔天 daily 才上線。
       # 只更新 runner 上的暫時 DB 副本，不回傳 Release（Sheet 才是唯一真實來源，
