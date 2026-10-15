@@ -60,6 +60,9 @@ class USVolumeSurgeFilter:
         df["date"] = pd.to_datetime(df["date"]).dt.date
         if target_date is None:
             target_date = df["date"].max()
+        else:
+            # 正規化成 date 物件，與 df["date"]（已轉 date）型別一致，確保日期比較正確
+            target_date = pd.to_datetime(target_date).date()
 
         df = df[df["date"] <= target_date]
         results = []
@@ -68,6 +71,10 @@ class USVolumeSurgeFilter:
             g = g.sort_values("date")
             # 需要當日 + 前 lookback 日，共 lookback+1 筆
             if len(g) < self.lookback + 1:
+                continue
+            # 當日（target_date）沒有交易資料（停牌/無成交）就跳過：否則會拿前一交易日的
+            # 最後一筆當「當日」算，把當天沒交易的股票誤標成當日入選（川飛 2026-10-15 案例）。
+            if g.iloc[-1]["date"] != target_date:
                 continue
 
             # 前 lookback 日（不含當日）：波動範圍與均量都看這段，判斷「當日之前有沒有窄幅整理」
